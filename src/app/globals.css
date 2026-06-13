@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-brand: #1a6eff;
+  --color-brand-light: #4d8fff;
+  --color-brand-dark: #0052cc;
+  --color-brand-bg: #e8f1ff;
+  --color-accent-orange: #ff6b35;
+  --color-accent-green: #52c41a;
+  --color-surface: #f5f7fa;
+  --color-card: #ffffff;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #f0f4ff;
+  --foreground: #1a1a2e;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d4d8e0; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #b0b8c4; }
+
+/* Message bubble animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-msg { animation: fadeInUp 0.3s ease-out; }
+
+/* Typing indicator */
+@keyframes typing {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #1a6eff 0%, #6c63ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
