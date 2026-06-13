@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-interface GradeInfo {
+export interface GradeInfo {
   id: string;
   title: string;
   subtitle: string;
@@ -13,7 +13,7 @@ interface GradeInfo {
   concerns: string[];
 }
 
-const grades: GradeInfo[] = [
+export const undergraduateGrades: GradeInfo[] = [
   {
     id: "freshman",
     title: "大一 · 探索期",
@@ -46,8 +46,8 @@ const grades: GradeInfo[] = [
   },
   {
     id: "senior",
-    title: "大四/研 · 冲刺期",
-    subtitle: "Senior & Graduate",
+    title: "大四 · 冲刺期",
+    subtitle: "Senior",
     tagline: "校招进行中，希望有人陪自己走完这程",
     color: "#52c41a",
     bgColor: "from-green-50 to-emerald-50 border-green-200",
@@ -56,18 +56,87 @@ const grades: GradeInfo[] = [
   },
 ];
 
+export const graduateGrades: GradeInfo[] = [
+  {
+    id: "master1",
+    title: "研一 · 适应期",
+    subtitle: "Master Y1",
+    tagline: "从本科到研究生，身份转变中，开始关注行业",
+    color: "#0891b2",
+    bgColor: "from-cyan-50 to-teal-50 border-cyan-200",
+    emoji: "🔬",
+    concerns: ["研究生如何规划求职？", "科研还是就业怎么选？", "腾讯对研究生有什么期待？"],
+  },
+  {
+    id: "master2",
+    title: "研二 · 积累期",
+    subtitle: "Master Y2",
+    tagline: "科研深入的同时，开始为实习和校招做准备",
+    color: "#7c3aed",
+    bgColor: "from-violet-50 to-fuchsia-50 border-violet-200",
+    emoji: "📑",
+    concerns: ["如何平衡科研和实习？", "研究生简历怎么写？", "技术岗位对研究生的要求？"],
+  },
+  {
+    id: "master3",
+    title: "研三 · 冲刺期",
+    subtitle: "Master Y3",
+    tagline: "论文答辩和校招双线作战，需要精准发力",
+    color: "#dc2626",
+    bgColor: "from-rose-50 to-red-50 border-rose-200",
+    emoji: "🎯",
+    concerns: ["校招关键时间节点？", "论文和面试如何兼顾？", "研究方向和岗位怎么匹配？"],
+  },
+];
+
+export const overseasGrades: GradeInfo[] = [
+  {
+    id: "overseas-early",
+    title: "留学初期 · 探索期",
+    subtitle: "Early Stage",
+    tagline: "刚出国不久，开始了解国内互联网行业动态",
+    color: "#0d9488",
+    bgColor: "from-teal-50 to-emerald-50 border-teal-200",
+    emoji: "🛫",
+    concerns: ["留学生如何了解国内行业？", "海归的求职优势是什么？", "需要提前做哪些准备？"],
+  },
+  {
+    id: "overseas-mid",
+    title: "留学中期 · 规划期",
+    subtitle: "Mid Stage",
+    tagline: "学业稳步推进，开始规划回国求职路线",
+    color: "#ca8a04",
+    bgColor: "from-yellow-50 to-amber-50 border-yellow-200",
+    emoji: "🎓",
+    concerns: ["海外经历如何写到简历里？", "远程面试要注意什么？", "腾讯有哪些海归专属项目？"],
+  },
+  {
+    id: "overseas-final",
+    title: "留学末期 · 求职期",
+    subtitle: "Final Stage",
+    tagline: "即将毕业，全力冲刺国内校招和社招机会",
+    color: "#0284c7",
+    bgColor: "from-sky-50 to-blue-50 border-sky-200",
+    emoji: "🏆",
+    concerns: ["海归校招时间线有什么不同？", "落户和签证政策？", "如何拿到满意的offer？"],
+  },
+];
+
 interface GradeSelectorProps {
   selectedGrade?: string;
   onSelect?: (gradeId: string) => void;
   showAll?: boolean;
+  grades?: GradeInfo[];
 }
 
 export default function GradeSelector({
   selectedGrade,
   onSelect,
   showAll = true,
+  grades,
 }: GradeSelectorProps) {
   const router = useRouter();
+  const displayGrades = grades || undergraduateGrades;
 
   const handleClick = (gradeId: string) => {
     if (onSelect) {
@@ -79,7 +148,7 @@ export default function GradeSelector({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-5xl">
-      {grades.map((grade) => {
+      {displayGrades.map((grade) => {
         const isSelected = selectedGrade === grade.id;
         const show = showAll || isSelected;
         if (!show) return null;

@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🦢 未来鹅 (FutureGoose)
 
-## Getting Started
+> 大学生职业成长 AI 陪伴体 —— 从大一到大四，一路陪伴，助你成为更好的自己。
 
-First, run the development server:
+## 🎯 项目简介
+
+未来鹅是一只会陪你成长的 AI 鹅，生活在腾讯的大家庭里。无论你来自哪里、在读哪个阶段，关于大学规划、职业方向、鹅厂的那些事儿，它都会一一讲给你听。
+
+### 覆盖群体
+
+| 群体 | 阶段细分 | 核心关切 |
+|------|----------|----------|
+| 🎓 本科生 | 大一 ~ 大四 | 专业方向、技能积累、实习、校招 |
+| 📚 研究生 | 研一 ~ 研三 | 科研 vs 就业、暑期实习、论文+求职双线作战 |
+| ✈️ 海外留学生 | 留学初期 ~ 求职期 | 回国求职、远程面试、海归优势、落户政策 |
+
+### 核心功能
+
+- **💬 AI 对话陪伴** — 根据你的群体和阶段，提供个性化的职业规划建议和行业认知
+- **📚 鹅厂知识库** — 岗位介绍、企业文化、校招时间线、培养体系
+- **🗺️ 成长路径规划** — 从新生到毕业，每个阶段该做什么、怎么准备的清晰地图
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Node.js 18+
+- npm 或 yarn
+
+### 安装与运行
 
 ```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+打开 [http://localhost:3000](http://localhost:3000) 查看效果。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 配置 AI 对话
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+在项目根目录创建 `.env.local` 文件：
 
-## Learn More
+```env
+DEEPSEEK_API_KEY=你的DeepSeek_API_Key
+```
 
-To learn more about Next.js, take a look at the following resources:
+不配置 API Key 时，系统会使用内置的预设回复作为 Fallback。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🛠️ 技术栈
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| 技术 | 说明 |
+|------|------|
+| Next.js 16 | App Router + Turbopack |
+| React 19 | 客户端/服务端组件混合 |
+| TypeScript | 严格模式 |
+| Tailwind CSS 4 | CSS-first 主题配置 |
+| DeepSeek API | AI 对话模型（流式输出） |
 
-## Deploy on Vercel
+## 📁 项目结构
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+├── app/
+│   ├── page.tsx              # 首页（三栏 Tab 切换 + 年级选择）
+│   ├── layout.tsx            # 根布局（Navbar + 字体）
+│   ├── globals.css           # Tailwind 主题 + 全局样式
+│   ├── chat/page.tsx         # AI 对话页
+│   ├── knowledge/page.tsx    # 鹅厂知识库
+│   ├── roadmap/page.tsx      # 成长路径规划
+│   └── api/chat/route.ts     # DeepSeek 对话代理 API
+└── components/
+    ├── Navbar.tsx            # 全局导航栏
+    ├── GradeSelector.tsx     # 年级选择卡片组（通用组件）
+    └── ChatBox.tsx           # AI 对话核心组件
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📄 许可
+
+MIT License
