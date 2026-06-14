@@ -1,4 +1,7 @@
 
+<div align="center">
+
+
 # 🦢 未来鹅 (FutureGoose)
 
 **大学生职业成长 AI 陪伴体**
@@ -195,5 +198,5 @@ npm run build   # 生成 out/ 目录（纯静态文件）
 ---
 
 <div align="center">
-  <sub>Made with 🦢 by FutureGoose Team</sub>
+  <sub>Made with 🦢 by Jiaxi SHAO</sub>
 </div>
