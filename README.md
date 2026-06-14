@@ -49,7 +49,7 @@ npm run build   # 生成 out/ 目录（静态文件）
 
 ## 🌐 在线访问
 
-**生产环境地址：[http://6ada758ef7f24c08b4e0a92839a489d6.codebuddy.cloudstudio.run](http://6ada758ef7f24c08b4e0a92839a489d6.codebuddy.cloudstudio.run)**
+**生产环境地址：[http://0670b20268e0491aa32c58217a42fccb.codebuddy.cloudstudio.run](http://0670b20268e0491aa32c58217a42fccb.codebuddy.cloudstudio.run)**
 
 > 部署于 CloudStudio，全球可访问。
 
