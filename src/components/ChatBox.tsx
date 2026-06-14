@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { getFallbackResponse } from "@/lib/chatResponses";
 
 interface Message {
   role: "user" | "assistant";
@@ -17,7 +18,13 @@ const gradeConfig: Record<string, { label: string; emoji: string; color: string 
   freshman: { label: "大一 · 探索期", emoji: "🌱", color: "bg-blue-100 text-blue-700" },
   sophomore: { label: "大二 · 定向期", emoji: "🌿", color: "bg-purple-100 text-purple-700" },
   junior: { label: "大三 · 积累期", emoji: "🌳", color: "bg-orange-100 text-orange-700" },
-  senior: { label: "大四/研 · 冲刺期", emoji: "🌴", color: "bg-green-100 text-green-700" },
+  senior: { label: "大四 · 冲刺期", emoji: "🌴", color: "bg-green-100 text-green-700" },
+  master1: { label: "研一 · 适应期", emoji: "🔬", color: "bg-cyan-100 text-cyan-700" },
+  master2: { label: "研二 · 积累期", emoji: "📑", color: "bg-violet-100 text-violet-700" },
+  master3: { label: "研三 · 冲刺期", emoji: "🎯", color: "bg-rose-100 text-rose-700" },
+  "overseas-early": { label: "留学初期", emoji: "🛫", color: "bg-teal-100 text-teal-700" },
+  "overseas-mid": { label: "留学中期", emoji: "🎓", color: "bg-amber-100 text-amber-700" },
+  "overseas-final": { label: "留学末期", emoji: "🏆", color: "bg-sky-100 text-sky-700" },
 };
 
 const quickPrompts: Record<string, string[]> = {
@@ -40,6 +47,36 @@ const quickPrompts: Record<string, string[]> = {
     "鹅厂校招的完整流程是什么？",
     "如何准备群面和HR面？",
     "收到多个offer怎么选？",
+  ],
+  master1: [
+    "研究生如何规划求职？",
+    "科研还是就业怎么选？",
+    "腾讯对研究生有什么期待？",
+  ],
+  master2: [
+    "如何平衡科研和实习？",
+    "研究生简历怎么写？",
+    "技术岗位对研究生的要求？",
+  ],
+  master3: [
+    "校招关键时间节点？",
+    "论文和面试如何兼顾？",
+    "研究方向和岗位怎么匹配？",
+  ],
+  "overseas-early": [
+    "留学生如何了解国内行业？",
+    "海归的求职优势是什么？",
+    "需要提前做哪些准备？",
+  ],
+  "overseas-mid": [
+    "海外经历如何写进简历？",
+    "远程面试要注意什么？",
+    "腾讯有哪些海归专属项目？",
+  ],
+  "overseas-final": [
+    "海归校招时间线有什么不同？",
+    "落户和签证政策？",
+    "如何拿到满意的offer？",
   ],
 };
 
@@ -67,74 +104,23 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     setLoading(true);
     setShowPrompts(false);
 
-    // Add placeholder for streaming
+    // Add placeholder for streaming simulation
     const assistantMsg: Message = { role: "assistant", content: "" };
     setMessages((prev) => [...prev, assistantMsg]);
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMsg].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          grade,
-        }),
-      });
+    // Simulate API call delay (1-2s for realism)
+    await new Promise((r) => setTimeout(r, 800 + Math.random() * 600));
 
-      if (!response.ok) throw new Error("请求失败");
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("无法读取响应");
-
-      const decoder = new TextDecoder();
-      let content = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content || "";
-              content += delta;
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = {
-                  role: "assistant",
-                  content,
-                };
-                return updated;
-              });
-            } catch {
-              // Skip malformed JSON
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Chat error:", error);
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content:
-            "抱歉，网络出了点问题 😥 请稍后再试。如果问题持续，请检查 API Key 是否已正确配置。",
-        };
-        return updated;
-      });
-    } finally {
-      setLoading(false);
-    }
+    const response = getFallbackResponse(grade, text);
+    setMessages((prev) => {
+      const updated = [...prev];
+      updated[updated.length - 1] = {
+        role: "assistant",
+        content: response,
+      };
+      return updated;
+    });
+    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

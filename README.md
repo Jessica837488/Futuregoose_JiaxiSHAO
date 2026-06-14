@@ -39,25 +39,29 @@ npm run dev
 
 打开 [http://localhost:3000](http://localhost:3000) 查看效果。
 
-### 配置 AI 对话
+### 构建生产版本
 
-在项目根目录创建 `.env.local` 文件：
-
-```env
-DEEPSEEK_API_KEY=你的DeepSeek_API_Key
+```bash
+npm run build   # 生成 out/ 目录（静态文件）
 ```
 
-不配置 API Key 时，系统会使用内置的预设回复作为 Fallback。
+本项目已配置静态导出（`output: "export"`），AI 对话使用本地智能回复库 `src/lib/chatResponses.ts`，无需任何外部 API Key。
+
+## 🌐 在线访问
+
+**生产环境地址：[http://6ada758ef7f24c08b4e0a92839a489d6.codebuddy.cloudstudio.run](http://6ada758ef7f24c08b4e0a92839a489d6.codebuddy.cloudstudio.run)**
+
+> 部署于 CloudStudio，全球可访问。
 
 ## 🛠️ 技术栈
 
 | 技术 | 说明 |
 |------|------|
-| Next.js 16 | App Router + Turbopack |
-| React 19 | 客户端/服务端组件混合 |
+| Next.js 16 | App Router + 静态导出 |
+| React 19 | 纯客户端组件 |
 | TypeScript | 严格模式 |
 | Tailwind CSS 4 | CSS-first 主题配置 |
-| DeepSeek API | AI 对话模型（流式输出） |
+| CloudStudio | 免费静态托管 |
 
 ## 📁 项目结构
 
@@ -69,12 +73,13 @@ src/
 │   ├── globals.css           # Tailwind 主题 + 全局样式
 │   ├── chat/page.tsx         # AI 对话页
 │   ├── knowledge/page.tsx    # 鹅厂知识库
-│   ├── roadmap/page.tsx      # 成长路径规划
-│   └── api/chat/route.ts     # DeepSeek 对话代理 API
-└── components/
-    ├── Navbar.tsx            # 全局导航栏
-    ├── GradeSelector.tsx     # 年级选择卡片组（通用组件）
-    └── ChatBox.tsx           # AI 对话核心组件
+│   └── roadmap/page.tsx      # 成长路径规划
+├── components/
+│   ├── Navbar.tsx            # 全局导航栏
+│   ├── GradeSelector.tsx     # 年级选择卡片组（通用组件）
+│   └── ChatBox.tsx           # AI 对话核心组件（内置智能回复）
+└── lib/
+    └── chatResponses.ts      # 本地智能回复库（按年级/群体分类）
 ```
 
 ## 📄 许可
