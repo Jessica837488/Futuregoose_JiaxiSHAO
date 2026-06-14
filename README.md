@@ -1,8 +1,4 @@
 
-<div align="center">
-
-<img src="public/favicon.svg" alt="未来鹅" width="80" />
-
 # 🦢 未来鹅 (FutureGoose)
 
 **大学生职业成长 AI 陪伴体**
@@ -194,6 +190,8 @@ npm run build   # 生成 out/ 目录（纯静态文件）
 
 [MIT License](./LICENSE)
 
+## 作者
+邵家曦
 ---
 
 <div align="center">
