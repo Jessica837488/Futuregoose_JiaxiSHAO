@@ -34,6 +34,7 @@ export interface ChatContext {
   lastTopic: string | null;    // 当前话题标识
   lastTopicTier: number;       // 当前已回复到第几层（0=未开始，1=已回Tier1）
   isDefaultTopic: boolean;     // 是否为默认（非关键词匹配）话题
+  topicExhausted: boolean;     // 本轮对话话题是否已耗尽（用于触发快捷提问）
 }
 
 // ============================================================
@@ -293,6 +294,7 @@ export function getResponse(
             context: {
               ...context,
               lastTopicTier: context.lastTopicTier + 1,
+              topicExhausted: false,
             },
           };
         }
@@ -308,6 +310,7 @@ export function getResponse(
               context: {
                 ...context,
                 lastTopicTier: context.lastTopicTier + 1,
+                topicExhausted: false,
               },
             };
           }
@@ -319,7 +322,7 @@ export function getResponse(
         exhaustedReplies[Math.floor(Math.random() * exhaustedReplies.length)];
       return {
         response: randomReply,
-        context: { lastTopic: null, lastTopicTier: 0, isDefaultTopic: false },
+        context: { lastTopic: null, lastTopicTier: 0, isDefaultTopic: false, topicExhausted: true },
       };
     }
 
@@ -337,6 +340,7 @@ export function getResponse(
             lastTopic: keyword,
             lastTopicTier: 1,
             isDefaultTopic: false,
+            topicExhausted: false,
           },
         };
       }
@@ -351,6 +355,7 @@ export function getResponse(
       lastTopic: grade, // 用 grade 标识默认话题
       lastTopicTier: 1,
       isDefaultTopic: true,
+      topicExhausted: false,
     },
   };
 }

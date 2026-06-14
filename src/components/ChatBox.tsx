@@ -89,6 +89,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     lastTopic: null,
     lastTopicTier: 0,
     isDefaultTopic: false,
+    topicExhausted: false,
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -118,11 +119,20 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
 
     const { response, context: newContext } = getResponse(grade, text, chatContext);
     setChatContext(newContext);
+
+    // 话题未耗尽时追加追问提示，耗尽时弹出快捷提问
+    const finalResponse = newContext.topicExhausted
+      ? response
+      : response + "\n\n试试追问我「还有呢」";
+    if (newContext.topicExhausted) {
+      setShowPrompts(true);
+    }
+
     setMessages((prev) => {
       const updated = [...prev];
       updated[updated.length - 1] = {
         role: "assistant",
-        content: response,
+        content: finalResponse,
       };
       return updated;
     });
@@ -202,9 +212,11 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       </div>
 
       {/* Quick prompts */}
-      {showPrompts && messages.length === 0 && (
+      {showPrompts && (
         <div className="px-4 pb-3">
-          <p className="text-xs text-gray-400 mb-2 text-center">💡 试试问我这些：</p>
+          <p className="text-xs text-gray-400 mb-2 text-center">
+            {messages.length === 0 ? "💡 试试问我这些：" : "💡 换个话题继续聊："}
+          </p>
           <div className="flex flex-wrap gap-2 justify-center">
             {prompts.map((prompt, i) => (
               <button
