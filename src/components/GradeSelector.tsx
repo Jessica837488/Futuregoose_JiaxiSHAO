@@ -146,13 +146,8 @@ export default function GradeSelector({
     }
   };
 
-  // 根据选项数量动态设置列数，保证自适应窗口宽度
-  const colCount = displayGrades.length;
-  const lgCols = colCount === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3";
-  const maxW = colCount === 4 ? "max-w-5xl" : "max-w-3xl";
-
   return (
-    <div className={`grid grid-cols-1 sm:grid-cols-2 ${lgCols} gap-4 w-full ${maxW}`}>
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4 w-full max-w-6xl">
       {displayGrades.map((grade) => {
         const isSelected = selectedGrade === grade.id;
         const show = showAll || isSelected;

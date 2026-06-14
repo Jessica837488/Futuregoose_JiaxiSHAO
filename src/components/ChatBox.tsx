@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { getFallbackResponse } from "@/lib/chatResponses";
+import { getResponse, type ChatContext } from "@/lib/chatResponses";
 
 interface Message {
   role: "user" | "assistant";
@@ -85,6 +85,11 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPrompts, setShowPrompts] = useState(true);
+  const [chatContext, setChatContext] = useState<ChatContext>({
+    lastTopic: null,
+    lastTopicTier: 0,
+    isDefaultTopic: false,
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -111,7 +116,8 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     // Simulate API call delay (1-2s for realism)
     await new Promise((r) => setTimeout(r, 800 + Math.random() * 600));
 
-    const response = getFallbackResponse(grade, text);
+    const { response, context: newContext } = getResponse(grade, text, chatContext);
+    setChatContext(newContext);
     setMessages((prev) => {
       const updated = [...prev];
       updated[updated.length - 1] = {
