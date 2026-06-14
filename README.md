@@ -1,6 +1,6 @@
 # 🦢 未来鹅 (FutureGoose)
 
-> 大学生职业成长 AI 陪伴体 —— 从大一到大四，一路陪伴，助你成为更好的自己。
+> 大学生职业成长 AI 陪伴体 —— 从入学到毕业，一路陪伴，助你成为更好的自己。
 
 ## 🎯 项目简介
 
@@ -22,32 +22,10 @@
 
 ## 🚀 快速开始
 
-### 环境要求
+访问链接
+http://6ada758ef7f24c08b4e0a92839a489d6.codebuddy.cloudstudio.run/
 
-- Node.js 18+
-- npm 或 yarn
 
-### 安装与运行
-
-```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
-```
-
-打开 [http://localhost:3000](http://localhost:3000) 查看效果。
-
-### 配置 AI 对话
-
-在项目根目录创建 `.env.local` 文件：
-
-```env
-DEEPSEEK_API_KEY=你的DeepSeek_API_Key
-```
-
-不配置 API Key 时，系统会使用内置的预设回复作为 Fallback。
 
 ## 🛠️ 技术栈
 
