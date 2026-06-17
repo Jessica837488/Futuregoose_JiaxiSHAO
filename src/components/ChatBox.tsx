@@ -105,29 +105,24 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     if (!text.trim() || loading) return;
 
     const userMsg: Message = { role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantPlaceholder: Message = { role: "assistant", content: "" };
+
+    // Batch 1: add both messages, clear input, set loading, hide prompts
+    setMessages((prev) => [...prev, userMsg, assistantPlaceholder]);
     setInput("");
     setLoading(true);
     setShowPrompts(false);
-
-    // Add placeholder for streaming simulation
-    const assistantMsg: Message = { role: "assistant", content: "" };
-    setMessages((prev) => [...prev, assistantMsg]);
 
     // Simulate API call delay (1-2s for realism)
     await new Promise((r) => setTimeout(r, 800 + Math.random() * 600));
 
     const { response, context: newContext } = getResponse(grade, text, chatContext);
-    setChatContext(newContext);
-
-    // 话题未耗尽时追加追问提示，耗尽时弹出快捷提问
-    const finalResponse = newContext.topicExhausted
+    const topicExhausted = newContext.topicExhausted;
+    const finalResponse = topicExhausted
       ? response
       : response + "\n\n试试追问我「还有呢」";
-    if (newContext.topicExhausted) {
-      setShowPrompts(true);
-    }
 
+    // Batch 2: update assistant message, context, show prompts, loading
     setMessages((prev) => {
       const updated = [...prev];
       updated[updated.length - 1] = {
@@ -136,6 +131,10 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       };
       return updated;
     });
+    setChatContext(newContext);
+    if (topicExhausted) {
+      setShowPrompts(true);
+    }
     setLoading(false);
   };
 
