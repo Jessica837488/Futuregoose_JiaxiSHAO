@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { getResponse, type ChatContext } from "@/lib/chatResponses";
 
 interface Message {
@@ -12,6 +12,40 @@ interface ChatBoxProps {
   grade: string;
   gradeLabel: string;
   placeholder?: string;
+}
+
+// ============================================================
+// localStorage persistence helpers
+// ============================================================
+const STORAGE_KEY_PREFIX = "futuregoose-chat";
+
+function getStorageKey(grade: string) {
+  return `${STORAGE_KEY_PREFIX}-${grade}`;
+}
+
+interface PersistedState {
+  messages: Message[];
+  context: ChatContext;
+}
+
+function loadPersisted(grade: string): PersistedState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(getStorageKey(grade));
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedState;
+  } catch {
+    return null;
+  }
+}
+
+function savePersisted(grade: string, state: PersistedState): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(getStorageKey(grade), JSON.stringify(state));
+  } catch {
+    // quota exceeded or privacy mode — silently ignore
+  }
 }
 
 const gradeConfig: Record<string, { label: string; emoji: string; color: string }> = {
@@ -81,6 +115,7 @@ const quickPrompts: Record<string, string[]> = {
 };
 
 export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps) {
+  // ── Server-safe defaults (must match SSR output exactly) ──
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,11 +126,54 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     isDefaultTopic: false,
     topicExhausted: false,
   });
+  const [hydrated, setHydrated] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const config = gradeConfig[grade] || gradeConfig.freshman;
   const prompts = quickPrompts[grade] || quickPrompts.freshman;
+
+  // ── Hydrate from localStorage once after mount ──
+  useEffect(() => {
+    const saved = loadPersisted(grade);
+    if (saved) {
+      setMessages(saved.messages);
+      setChatContext(saved.context);
+      setShowPrompts(saved.messages.length === 0);
+    }
+    setHydrated(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Rehydrate when grade prop changes ──
+  const prevGradeRef = useRef(grade);
+  useEffect(() => {
+    if (prevGradeRef.current === grade) return;
+    prevGradeRef.current = grade;
+    const saved = loadPersisted(grade);
+    if (saved) {
+      setMessages(saved.messages);
+      setChatContext(saved.context);
+      setShowPrompts(saved.messages.length === 0);
+    } else {
+      setMessages([]);
+      setChatContext({
+        lastTopic: null,
+        lastTopicTier: 0,
+        isDefaultTopic: false,
+        topicExhausted: false,
+      });
+      setShowPrompts(true);
+    }
+  }, [grade]);
+
+  // Persist messages + context to localStorage on every meaningful change
+  useEffect(() => {
+    if (!hydrated) return; // don't persist until after initial hydration
+    if (!loading) {
+      // don't persist while streaming (placeholder message)
+      savePersisted(grade, { messages, context: chatContext });
+    }
+  }, [messages, chatContext, loading, grade, hydrated]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
