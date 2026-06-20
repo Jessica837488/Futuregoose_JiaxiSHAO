@@ -1,132 +1,139 @@
-const knowledgeData = [
+import KnowledgeAccordion, { type Section } from "@/components/KnowledgeAccordion";
+
+// ============================================================
+// Data — static, server-rendered
+// ============================================================
+const sections: Section[] = [
   {
-    category: "🏢 关于腾讯",
-    items: [
+    id: "roles", icon: "💼", title: "岗位分类",
+    desc: "了解鹅厂都有哪些岗位方向，找到与你最匹配的那一个。",
+    color: "border-blue-200 bg-blue-50/50", type: "roles",
+    content: [
       {
-        q: "腾讯是一家什么样的公司？",
-        a: "腾讯成立于1998年，总部位于深圳，是中国领先的互联网科技公司。业务涵盖社交（微信/QQ）、游戏、金融科技、企业服务、云计算、AI等多个领域。腾讯以「用户为本，科技向善」为使命，致力于用技术改善人们的生活。",
+        title: "技术类",
+        roles: [
+          { name: "后端开发", skills: "Go / C++ / Java / Python", tip: "需求量最大，适合喜欢系统设计和逻辑的同学" },
+          { name: "前端开发", skills: "React / Vue / TypeScript", tip: "贴近用户，快速看到效果" },
+          { name: "客户端开发", skills: "Kotlin / Swift / Flutter", tip: "iOS/Android生态，移动端核心" },
+          { name: "算法工程师", skills: "Python / PyTorch / 数学", tip: "AI/推荐/搜索/广告，研究和工程结合" },
+          { name: "测试开发", skills: "Python / 自动化框架", tip: "质量保障，从代码层面保证产品稳定" },
+          { name: "安全工程师", skills: "逆向/漏洞/密码学", tip: "攻防两端，腾讯安全是行业标杆" },
+          { name: "游戏开发", skills: "C++ / Unity / UE", tip: "游戏引擎、图形学、网络同步" },
+        ],
       },
       {
-        q: "腾讯的核心文化是什么？",
-        a: "腾讯文化关键词：\n• 用户为本——一切以用户价值为依归\n• 科技向善——用科技推动社会进步\n• 正直、进取、协作、创造\n• 开放包容，鼓励创新\n• 内部倡导「瑞雪」（专业）精神",
+        title: "产品类",
+        roles: [
+          { name: "产品策划", skills: "需求分析 / 原型设计 / 数据分析", tip: "定义产品做什么、为什么做" },
+          { name: "产品运营", skills: "活动策划 / 用户运营 / 增长", tip: "让更多人用、用得更好" },
+          { name: "游戏策划", skills: "玩法设计 / 数值 / 关卡", tip: "创造好玩的世界，需要热爱游戏" },
+        ],
       },
       {
-        q: "腾讯的业务版图有哪些？",
-        a: "主要业务线：\n🎮 互动娱乐（游戏）\n💬 微信生态（社交/支付/小程序）\n☁️ 云与智慧产业（企业服务）\n📺 平台与内容（视频/音乐/阅读）\n🤖 AI与前沿技术\n🌐 国际业务",
+        title: "设计类",
+        roles: [
+          { name: "视觉设计", skills: "Figma / PS / AI", tip: "界面的视觉表达和品牌调性" },
+          { name: "交互设计", skills: "用户研究 / 原型 / 动效", tip: "让产品用起来顺畅自然" },
+        ],
+      },
+      { title: "其他", roles: [
+          { name: "市场/品牌", skills: "营销策划 / 内容 / 传播", tip: "让更多人知道和喜欢产品" },
+          { name: "HR/财务/行政", skills: "专业领域能力", tip: "职能部门是公司运转的基石" },
+      ]},
+    ],
+  },
+  {
+    id: "timeline", icon: "📅", title: "校招时间线",
+    desc: "一张图看懂从投递到拿offer的全流程。",
+    color: "border-orange-200 bg-orange-50/50", type: "timeline",
+    timeline: [
+      { month: "7月", tag: "提前批", events: ["免笔试直接面试", "未通过不影响正式批", "精准匹配，命中率高"] },
+      { month: "8月", tag: "正式批启动", events: ["网申通道开放", "线上笔试通知陆续发出"] },
+      { month: "9月", tag: "笔试&面试", events: ["统一笔试（编程+基础）", "一面：技术/项目深挖", "二面：交叉面/leader面"] },
+      { month: "10月", tag: "面试&HR面", events: ["三面/四面：部门负责人面", "HR面：价值观+沟通能力"] },
+      { month: "11月", tag: "Offer发放", events: ["意向书发放", "正式offer沟通", "签约"] },
+      { month: "次年2-4月", tag: "春招补录", events: ["部分岗位补招", "秋招未上岸的同学再战"] },
+    ],
+  },
+  {
+    id: "interview", icon: "🎯", title: "面试流程详解",
+    desc: "每一轮面试考察什么、怎么准备。",
+    color: "border-purple-200 bg-purple-50/50", type: "interview",
+    content: [
+      {
+        title: "技术岗面试流程",
+        steps: [
+          { step: "1. 在线笔试", detail: "编程题（2-3道）+ 基础知识选择题。中等难度为主，重点是正确率和代码风格。" },
+          { step: "2. 技术一面", detail: "项目经历深挖 + 1-2道算法题 + 基础问答。面试官是未来同事，看的是基本功和沟通。" },
+          { step: "3. 技术二面", detail: "更深入的项目讨论 + 系统设计（视岗位）+ 综合技术能力考察。面试官可能是组长或资深工程师。" },
+          { step: "4. 交叉/三面", detail: "不同团队的面试官从另一个角度评估，有时是总监或负责人面。" },
+          { step: "5. HR面", detail: "价值观匹配、职业规划、沟通表达、薪资期望。诚实坦诚，表达对团队的认同。" },
+        ],
+      },
+      {
+        title: "产品岗面试流程",
+        steps: [
+          { step: "1. 在线笔试", detail: "行测 + 产品题（需求分析、方案设计、数据分析），考察逻辑和产品感。" },
+          { step: "2. 群面/业务面", detail: "案例讨论 + 方案输出。展示逻辑清晰、推动讨论的能力。" },
+          { step: "3. 单面", detail: "产品思维、过往项目、行业理解。准备1-2个你深度思考过的产品问题。" },
+          { step: "4. 总监面", detail: "全局视野、战略思考、价值观。" },
+          { step: "5. HR面", detail: "综合素质和团队匹配度。" },
+        ],
       },
     ],
   },
   {
-    category: "🎯 岗位与方向",
+    id: "culture", icon: "🏢", title: "企业文化",
+    desc: "鹅厂是一家怎样的公司？进来感受一下。",
+    color: "border-green-200 bg-green-50/50", type: "culture",
     items: [
-      {
-        q: "腾讯有哪些技术岗位？",
-        a: "技术类岗位包括：\n• 后端开发（C++/Go/Java/Python）\n• 前端开发（React/Vue/小程序）\n• 客户端开发（iOS/Android）\n• 算法/机器学习工程师\n• 数据科学/数据分析\n• 测试开发/运维开发\n• 安全工程师\n• 游戏开发（Unity/Unreal）",
-      },
-      {
-        q: "非技术岗有哪些？",
-        a: "非技术类岗位：\n• 产品经理/产品策划\n• 产品运营\n• 游戏策划/运营\n• 市场/品牌\n• 设计（UI/UX/视觉/交互）\n• 人力资源\n• 财务/法务\n• 商业分析",
-      },
-      {
-        q: "实习生需要具备什么能力？",
-        a: "鹅厂实习生核心能力要求：\n• 扎实的基础知识（计算机基础/专业理论）\n• 实际项目经验（课程项目/竞赛/开源）\n• 学习能力和好奇心\n• 沟通协作能力\n• 对产品的热情和思考\n• 有相关实习经历是加分项",
-      },
-    ],
-  },
-  {
-    category: "📅 校招时间线",
-    items: [
-      {
-        q: "腾讯校招的完整流程是什么？",
-        a: "腾讯校招标准流程：\n① 网申投递（8-9月）\n② 在线笔试（9月）\n③ 技术面试 2-3轮（9-10月）\n④ HR面试（10月）\n⑤ Offer发放（10-11月）\n⑥ 签约入职\n\n提前批通常在 7-8 月开始，可以提前投递！",
-      },
-      {
-        q: "实习招聘时间线？",
-        a: "腾讯实习生招聘：\n• 暑期实习：每年 3-4 月启动，面向大三/研二\n• 日常实习：全年滚动招聘\n• 犀牛鸟专项：针对特定技术方向\n• 海外留学生专场：每年春秋两季\n\n建议大三下学期 3 月就开始关注！",
-      },
-      {
-        q: "技术笔试考什么？",
-        a: "笔试内容通常包括：\n• 编程题（2-4道，考察算法和数据结构）\n• 选择题（计算机基础、网络、OS等）\n• 开放题（系统设计、技术方案）\n\n重点复习：\n• 数据结构：数组、链表、树、图\n• 算法：排序、搜索、DP、贪心\n• 计算机网络、操作系统、数据库基础",
-      },
-    ],
-  },
-  {
-    category: "💡 面试宝典",
-    items: [
-      {
-        q: "技术面试一般问什么？",
-        a: "技术面试常见考察点：\n• 项目经历深挖（为什么这么做？遇到什么困难？）\n• 基础算法题（手写代码）\n• 系统设计思路\n• 技术视野和深度\n• 沟通表达和逻辑思维\n\n小技巧：用 STAR 法则（情境-任务-行动-结果）组织你的回答。",
-      },
-      {
-        q: "产品岗位面试怎么准备？",
-        a: "产品面试重点：\n• 准备 1-2 个深度产品分析（为什么好/不好/怎么改进）\n• 了解常用的产品方法论\n• 逻辑题/估算题练习\n• 对腾讯产品的理解\n• 群面中展现协作和推动力\n\n建议：用腾讯的产品练手，比如分析微信的一个功能。",
-      },
-      {
-        q: "面试后多久收到结果？",
-        a: "通常面试后 3-7 个工作日内会有反馈。如果超过一周没有消息，可以礼貌地通过邮件询问 HR。\n\n温馨提醒：面试是双向选择，放平心态，每一次面试都是成长！🦢",
-      },
+      { icon: "💡", title: "使命愿景", detail: "「用户为本，科技向善」——不只是口号，是产品决策的底层逻辑。腾讯坚持用科技能力创造社会价值。" },
+      { icon: "🤝", title: "工程师文化", detail: "开平（开放平等）、瑞雪（坦诚正直）、极客精神。内部有大量技术分享、开源项目，鼓励用数据说话。" },
+      { icon: "📚", title: "新人培养", detail: "1对1导师制、新员工封闭培训、技术学院课程体系。入职后有完整的90天融入计划，帮你从学生平稳过渡到职场人。" },
+      { icon: "🌍", title: "业务版图", detail: "六大事业群覆盖社交（WXG）、游戏（IEG）、云与产业（CSIG）、内容平台（PCG）、企业发展（CDG）、技术工程（TEG）。" },
+      { icon: "🏆", title: "成长通道", detail: "双通道晋升（管理+专业），技术线从初级到专家，每个级别有清晰的能力标准。新人关注的是成长速度，而非起点。" },
     ],
   },
 ];
 
+// ============================================================
+// SEO Metadata
+// ============================================================
+export const metadata = {
+  title: "鹅厂知识库 | 未来鹅 — 岗位介绍·校招时间线·面试流程·企业文化",
+  description:
+    "了解腾讯校招的全方位信息：技术/产品/设计等岗位分类、7-11月校招时间线详解、各岗位面试流程与准备建议、企业文化与新人培养体系。",
+  openGraph: {
+    title: "鹅厂知识库 | 未来鹅",
+    description: "岗位介绍、校招时间线、面试流程、企业文化——关于鹅厂你想知道的一切。",
+    type: "website",
+  },
+};
+
+// ============================================================
+// Server Component Page
+// ============================================================
 export default function KnowledgePage() {
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-2">
-          📚 鹅厂知识库
-        </h1>
-        <p className="text-gray-500">
-          关于腾讯你想知道的一切，都在这里
+    <div className="min-h-[calc(100vh-56px)] flex flex-col items-center pt-8 px-4 pb-16">
+      {/* Hero */}
+      <div className="text-center mb-10 max-w-2xl">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-xl shadow-purple-500/25 mb-5">
+          <span className="text-3xl">📚</span>
+        </div>
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-3">鹅厂知识库</h1>
+        <p className="text-gray-500 leading-relaxed">
+          岗位介绍、校招时间线、面试流程、企业文化——关于鹅厂你想知道的一切，这里都有。
         </p>
       </div>
 
-      {/* Knowledge cards */}
-      <div className="space-y-8">
-        {knowledgeData.map((section, si) => (
-          <div key={si}>
-            <h2 className="text-xl font-bold text-gray-800 mb-4">
-              {section.category}
-            </h2>
-            <div className="space-y-3">
-              {section.items.map((item, ii) => (
-                <details
-                  key={ii}
-                  className="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all"
-                >
-                  <summary className="px-6 py-4 cursor-pointer flex items-center justify-between hover:bg-gray-50 transition-colors list-none">
-                    <span className="text-sm font-medium text-gray-700 pr-4">
-                      {item.q}
-                    </span>
-                    <span className="text-gray-400 group-open:rotate-180 transition-transform shrink-0">
-                      ▼
-                    </span>
-                  </summary>
-                  <div className="px-6 pb-5 pt-1">
-                    <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                      {item.a}
-                    </div>
-                  </div>
-                </details>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Interactive accordion (client component) */}
+      <KnowledgeAccordion sections={sections} />
 
-      {/* CTA */}
-      <div className="text-center mt-12 pb-8">
-        <p className="text-gray-400 text-sm mb-4">
-          还有更多问题？去和未来鹅聊聊吧～
-        </p>
-        <a
-          href="/chat"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-brand text-white font-medium hover:bg-brand-dark transition-colors shadow-lg shadow-brand/20"
-        >
-          💬 开始 AI 对话
-        </a>
-      </div>
+      {/* Footer note */}
+      <p className="mt-10 text-xs text-gray-400 text-center max-w-md">
+        💡 知识库持续更新中。有想了解的内容？回到 AI 对话页面直接问我吧～
+      </p>
     </div>
   );
 }

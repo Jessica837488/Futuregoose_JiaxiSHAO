@@ -1,6 +1,7 @@
 
 <div align="center">
 
+<img src="public/favicon.svg" alt="未来鹅" width="80" />
 
 # 🦢 未来鹅 (FutureGoose)
 
@@ -193,10 +194,8 @@ npm run build   # 生成 out/ 目录（纯静态文件）
 
 [MIT License](./LICENSE)
 
-## 作者
-邵家曦
 ---
 
 <div align="center">
-  <sub>Made with 🦢 by Jiaxi SHAO</sub>
+  <sub>Made with 🦢 by FutureGoose Team</sub>
 </div>

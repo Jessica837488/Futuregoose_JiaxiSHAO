@@ -1,142 +1,92 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { getResponse, type ChatContext } from "@/lib/chatResponses";
+import { getGradeConfig, getQuickPrompts } from "@/data/grades";
+import { useChatPersistence, type Message } from "@/hooks/useChatPersistence";
+import { useAutoScroll } from "@/hooks/useAutoScroll";
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
+// ============================================================
+// Constants
+// ============================================================
+const TEXTAREA_MAX_HEIGHT = 120; // px, ~5 lines of text
 
+// ============================================================
+// Types
+// ============================================================
 interface ChatBoxProps {
   grade: string;
   gradeLabel: string;
   placeholder?: string;
 }
 
-const gradeConfig: Record<string, { label: string; emoji: string; color: string }> = {
-  freshman: { label: "大一 · 探索期", emoji: "🌱", color: "bg-blue-100 text-blue-700" },
-  sophomore: { label: "大二 · 定向期", emoji: "🌿", color: "bg-purple-100 text-purple-700" },
-  junior: { label: "大三 · 积累期", emoji: "🌳", color: "bg-orange-100 text-orange-700" },
-  senior: { label: "大四/研 · 冲刺期", emoji: "🌴", color: "bg-green-100 text-green-700" },
-};
-
-const quickPrompts: Record<string, string[]> = {
-  freshman: [
-    "腾讯是一家什么样的公司？",
-    "互联网行业有哪些热门岗位？",
-    "大一应该怎么规划大学生活？",
-  ],
-  sophomore: [
-    "学计算机可以做什么方向？",
-    "鹅厂的技术栈有哪些？",
-    "怎么找到自己感兴趣的方向？",
-  ],
-  junior: [
-    "鹅厂实习生的日常是怎样的？",
-    "简历怎么写才能脱颖而出？",
-    "技术面试一般问什么？",
-  ],
-  senior: [
-    "鹅厂校招的完整流程是什么？",
-    "如何准备群面和HR面？",
-    "收到多个offer怎么选？",
-  ],
-};
+// ============================================================
+// Component
+// ============================================================
 
 export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // ── Hooks ──
+  const {
+    messages,
+    setMessages,
+    chatContext,
+    setChatContext,
+    showPrompts,
+    setShowPrompts,
+  } = useChatPersistence({ grade });
+
+  const { containerRef, sentinelRef } = useAutoScroll({ dep: messages });
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPrompts, setShowPrompts] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const config = gradeConfig[grade] || gradeConfig.freshman;
-  const prompts = quickPrompts[grade] || quickPrompts.freshman;
+  // ── Derived data ──
+  const config = getGradeConfig(grade);
+  const prompts = getQuickPrompts(grade);
 
+  // ── Auto-resize textarea ──
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
+  }, [input]);
 
+  // ── Send message logic ──
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading) return;
 
     const userMsg: Message = { role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
+    const placeholderMsg: Message = { role: "assistant", content: "" };
+
+    // Batch 1: add both messages, clear input, set loading, hide prompts
+    setMessages((prev) => [...prev, userMsg, placeholderMsg]);
     setInput("");
     setLoading(true);
     setShowPrompts(false);
 
-    // Add placeholder for streaming
-    const assistantMsg: Message = { role: "assistant", content: "" };
-    setMessages((prev) => [...prev, assistantMsg]);
+    // Simulate API call delay (800-1400ms for realism)
+    await new Promise((r) => setTimeout(r, 800 + Math.random() * 600));
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMsg].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          grade,
-        }),
-      });
+    const { response, context: newContext } = getResponse(grade, text, chatContext);
+    const topicExhausted = newContext.topicExhausted;
+    const finalResponse = topicExhausted
+      ? response
+      : response + "\n\n试试追问我「还有呢」";
 
-      if (!response.ok) throw new Error("请求失败");
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("无法读取响应");
-
-      const decoder = new TextDecoder();
-      let content = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content || "";
-              content += delta;
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = {
-                  role: "assistant",
-                  content,
-                };
-                return updated;
-              });
-            } catch {
-              // Skip malformed JSON
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Chat error:", error);
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content:
-            "抱歉，网络出了点问题 😥 请稍后再试。如果问题持续，请检查 API Key 是否已正确配置。",
-        };
-        return updated;
-      });
-    } finally {
-      setLoading(false);
-    }
+    // Batch 2: update assistant message, context, show prompts, stop loading
+    setMessages((prev) => {
+      const updated = [...prev];
+      updated[updated.length - 1] = { role: "assistant", content: finalResponse };
+      return updated;
+    });
+    setChatContext(newContext);
+    if (topicExhausted) setShowPrompts(true);
+    setLoading(false);
   };
 
+  // ── Event handlers ──
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -148,6 +98,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     sendMessage(prompt);
   };
 
+  // ── Render ──
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] max-w-3xl mx-auto">
       {/* Chat header */}
@@ -160,7 +111,8 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+        {/* Empty state */}
         {messages.length === 0 && (
           <div className="text-center py-20">
             <div className="text-5xl mb-4">🦢</div>
@@ -173,9 +125,10 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
           </div>
         )}
 
+        {/* Message list */}
         {messages.map((msg, i) => (
           <div
-            key={i}
+            key={`${msg.role}-${i}`}
             className={`flex animate-msg ${
               msg.role === "user" ? "justify-end" : "justify-start"
             }`}
@@ -187,32 +140,19 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
                   : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
               }`}
             >
-              {msg.content || (
-                <span className="flex items-center gap-1">
-                  <span
-                    className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
-                    style={{ animationDelay: "0ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
-                    style={{ animationDelay: "200ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
-                    style={{ animationDelay: "400ms" }}
-                  />
-                </span>
-              )}
+              {msg.content || <TypingIndicator />}
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
+        <div ref={sentinelRef} />
       </div>
 
       {/* Quick prompts */}
-      {showPrompts && messages.length === 0 && (
+      {showPrompts && (
         <div className="px-4 pb-3">
-          <p className="text-xs text-gray-400 mb-2 text-center">💡 试试问我这些：</p>
+          <p className="text-xs text-gray-400 mb-2 text-center">
+            {messages.length === 0 ? "💡 试试问我这些：" : "💡 换个话题继续聊："}
+          </p>
           <div className="flex flex-wrap gap-2 justify-center">
             {prompts.map((prompt, i) => (
               <button
@@ -236,8 +176,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder || "输入你的问题，按 Enter 发送..."}
-            rows={1}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none resize-none text-sm bg-white transition-all"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none resize-none text-sm bg-white transition-all min-h-[40px] max-h-[120px]"
             disabled={loading}
           />
           <button
@@ -253,5 +192,24 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         </p>
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// Sub-components
+// ============================================================
+
+/** Animated typing dots shown while AI is "thinking" */
+function TypingIndicator() {
+  return (
+    <span className="flex items-center gap-1">
+      {[0, 200, 400].map((delay) => (
+        <span
+          key={delay}
+          className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
+          style={{ animationDelay: `${delay}ms` }}
+        />
+      ))}
+    </span>
   );
 }
