@@ -198,4 +198,10 @@ npm run build   # 生成 out/ 目录（纯静态文件）
 
 <div align="center">
   <sub>Made with 🦢 by FutureGoose Team</sub>
+## 作者
+邵家曦
+---
+
+<div align="center">
+  <sub>Made with 🦢 by Jiaxi SHAO</sub>
 </div>
