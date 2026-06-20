@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { getResponse, type ChatContext } from "@/lib/chatResponses";
 import { getGradeConfig, getQuickPrompts } from "@/data/grades";
+import { useChatPersistence, type Message } from "@/hooks/useChatPersistence";
+import { useAutoScroll } from "@/hooks/useAutoScroll";
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
+// ============================================================
+// Constants
+// ============================================================
+const TEXTAREA_MAX_HEIGHT = 120; // px, ~5 lines of text
 
+// ============================================================
+// Types
+// ============================================================
 interface ChatBoxProps {
   grade: string;
   gradeLabel: string;
@@ -16,144 +21,53 @@ interface ChatBoxProps {
 }
 
 // ============================================================
-// localStorage persistence helpers
+// Component
 // ============================================================
-const STORAGE_KEY_PREFIX = "futuregoose-chat";
-
-function getStorageKey(grade: string) {
-  return `${STORAGE_KEY_PREFIX}-${grade}`;
-}
-
-interface PersistedState {
-  messages: Message[];
-  context: ChatContext;
-}
-
-function loadPersisted(grade: string): PersistedState | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(getStorageKey(grade));
-    if (!raw) return null;
-    return JSON.parse(raw) as PersistedState;
-  } catch {
-    return null;
-  }
-}
-
-function savePersisted(grade: string, state: PersistedState): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(getStorageKey(grade), JSON.stringify(state));
-  } catch {
-    // quota exceeded or privacy mode — silently ignore
-  }
-}
-
 
 export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps) {
-  // ── Server-safe defaults (must match SSR output exactly) ──
-  const [messages, setMessages] = useState<Message[]>([]);
+  // ── Hooks ──
+  const {
+    messages,
+    setMessages,
+    chatContext,
+    setChatContext,
+    showPrompts,
+    setShowPrompts,
+    loading: isLoading,
+  } = useChatPersistence({ grade });
+
+  const { containerRef, sentinelRef } = useAutoScroll({ dep: messages });
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPrompts, setShowPrompts] = useState(true);
-  const [chatContext, setChatContext] = useState<ChatContext>({
-    lastTopic: null,
-    lastTopicTier: 0,
-    isDefaultTopic: false,
-    topicExhausted: false,
-  });
-  const [hydrated, setHydrated] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  // Track whether user is scrolled near bottom (for smart auto-scroll)
-  const [isAtBottom, setIsAtBottom] = useState(true);
 
+  // ── Derived data ──
   const config = getGradeConfig(grade);
   const prompts = getQuickPrompts(grade);
 
-  // ── Hydrate from localStorage once after mount ──
-  useEffect(() => {
-    const saved = loadPersisted(grade);
-    if (saved) {
-      setMessages(saved.messages);
-      setChatContext(saved.context);
-      setShowPrompts(saved.messages.length === 0);
-    }
-    setHydrated(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Rehydrate when grade prop changes ──
-  const prevGradeRef = useRef(grade);
-  useEffect(() => {
-    if (prevGradeRef.current === grade) return;
-    prevGradeRef.current = grade;
-    const saved = loadPersisted(grade);
-    if (saved) {
-      setMessages(saved.messages);
-      setChatContext(saved.context);
-      setShowPrompts(saved.messages.length === 0);
-    } else {
-      setMessages([]);
-      setChatContext({
-        lastTopic: null,
-        lastTopicTier: 0,
-        isDefaultTopic: false,
-        topicExhausted: false,
-      });
-      setShowPrompts(true);
-    }
-  }, [grade]);
-
-  // Persist messages + context to localStorage on every meaningful change
-  useEffect(() => {
-    if (!hydrated) return; // don't persist until after initial hydration
-    if (!loading) {
-      // don't persist while streaming (placeholder message)
-      savePersisted(grade, { messages, context: chatContext });
-    }
-  }, [messages, chatContext, loading, grade, hydrated]);
-
-  // ── Smart auto-scroll: only scroll to bottom if user was already near it ──
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      // Within 80px of bottom = "at bottom"
-      setIsAtBottom(scrollHeight - scrollTop - clientHeight < 80);
-    };
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  useEffect(() => {
-    // Only auto-scroll when new messages arrive AND user is at bottom (or initial load)
-    if (!isAtBottom && messages.length > 0) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isAtBottom]);
-
-  // ── Auto-resize textarea based on content ──
+  // ── Auto-resize textarea ──
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`; // max ~5 lines
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
   }, [input]);
 
+  // ── Send message logic ──
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading) return;
 
     const userMsg: Message = { role: "user", content: text };
-    const assistantPlaceholder: Message = { role: "assistant", content: "" };
+    const placeholderMsg: Message = { role: "assistant", content: "" };
 
     // Batch 1: add both messages, clear input, set loading, hide prompts
-    setMessages((prev) => [...prev, userMsg, assistantPlaceholder]);
+    setMessages((prev) => [...prev, userMsg, placeholderMsg]);
     setInput("");
     setLoading(true);
     setShowPrompts(false);
 
-    // Simulate API call delay (1-2s for realism)
+    // Simulate API call delay (800-1400ms for realism)
     await new Promise((r) => setTimeout(r, 800 + Math.random() * 600));
 
     const { response, context: newContext } = getResponse(grade, text, chatContext);
@@ -162,22 +76,18 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       ? response
       : response + "\n\n试试追问我「还有呢」";
 
-    // Batch 2: update assistant message, context, show prompts, loading
+    // Batch 2: update assistant message, context, show prompts, stop loading
     setMessages((prev) => {
       const updated = [...prev];
-      updated[updated.length - 1] = {
-        role: "assistant",
-        content: finalResponse,
-      };
+      updated[updated.length - 1] = { role: "assistant", content: finalResponse };
       return updated;
     });
     setChatContext(newContext);
-    if (topicExhausted) {
-      setShowPrompts(true);
-    }
+    if (topicExhausted) setShowPrompts(true);
     setLoading(false);
   };
 
+  // ── Event handlers ──
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -189,6 +99,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     sendMessage(prompt);
   };
 
+  // ── Render ──
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] max-w-3xl mx-auto">
       {/* Chat header */}
@@ -201,7 +112,8 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       </div>
 
       {/* Messages area */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+        {/* Empty state */}
         {messages.length === 0 && (
           <div className="text-center py-20">
             <div className="text-5xl mb-4">🦢</div>
@@ -214,9 +126,10 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
           </div>
         )}
 
+        {/* Message list */}
         {messages.map((msg, i) => (
           <div
-            key={i}
+            key={`${msg.role}-${i}`}
             className={`flex animate-msg ${
               msg.role === "user" ? "justify-end" : "justify-start"
             }`}
@@ -228,26 +141,11 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
                   : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
               }`}
             >
-              {msg.content || (
-                <span className="flex items-center gap-1">
-                  <span
-                    className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
-                    style={{ animationDelay: "0ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
-                    style={{ animationDelay: "200ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
-                    style={{ animationDelay: "400ms" }}
-                  />
-                </span>
-              )}
+              {msg.content || <TypingIndicator />}
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
+        <div ref={sentinelRef} />
       </div>
 
       {/* Quick prompts */}
@@ -295,5 +193,24 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         </p>
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// Sub-components
+// ============================================================
+
+/** Animated typing dots shown while AI is "thinking" */
+function TypingIndicator() {
+  return (
+    <span className="flex items-center gap-1">
+      {[0, 200, 400].map((delay) => (
+        <span
+          key={delay}
+          className="w-2 h-2 rounded-full bg-gray-400 animate-pulse"
+          style={{ animationDelay: `${delay}ms` }}
+        />
+      ))}
+    </span>
   );
 }
