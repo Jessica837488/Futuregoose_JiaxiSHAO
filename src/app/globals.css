@@ -59,3 +59,34 @@ body {
 .animate-slideDown {
   animation: slideDown 0.2s ease-out;
 }
+
+/* ============================================================
+ * CSS-only Tab System (Home page — radio-based tab switching)
+ * ============================================================ */
+.tab-radio { display: none; }
+.tab-panel { display: none; }
+
+/* Show the checked panel */
+#tab-undergraduate:checked ~ .tab-content-wrap #panel-undergraduate,
+#tab-graduate:checked ~ .tab-content-wrap #panel-graduate,
+#tab-overseas:checked ~ .tab-content-wrap #panel-overseas {
+  display: block;
+}
+
+/* Highlight active tab button */
+#tab-under:checked ~ .tab-bar label[for="tab-undergraduate"],
+#tab-graduate:checked ~ .tab-bar label[for="tab-graduate"],
+#tab-overseas:checked ~ .tab-bar label[for="tab-overseas"] {
+  background: white;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border: 1px solid #e5e7eb;
+}
+
+/* Show intro text for active tab */
+.tab-intro { display: none; }
+#tab-undergraduate:checked ~ #intro-undergraduate,
+#tab-graduate:checked ~ #intro-graduate,
+#tab-overseas:checked ~ #intro-overseas {
+  display: block;
+}

@@ -59,31 +59,6 @@ export default function Home() {
         </p>
       </div>
 
-      {/* CSS-only Tab System */}
-      <style>{`
-        .tab-radio { display: none; }
-        .tab-panel { display: none; }
-        #tab-undergraduate:checked ~ .tab-content-wrap #panel-undergraduate,
-        #tab-graduate:checked ~ .tab-content-wrap #panel-graduate,
-        #tab-overseas:checked ~ .tab-content-wrap #panel-overseas {
-          display: block;
-        }
-        #tab-undergraduate:checked ~ .tab-bar label[for="tab-undergraduate"],
-        #tab-graduate:checked ~ .tab-bar label[for="tab-graduate"],
-        #tab-overseas:checked ~ .tab-bar label[for="tab-overseas"] {
-          background: white;
-          color: #111827;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          ring: 1px solid #e5e7eb;
-        }
-        .tab-intro { display: none; }
-        #tab-undergraduate:checked ~ #intro-undergraduate,
-        #tab-graduate:checked ~ #intro-graduate,
-        #tab-overseas:checked ~ #intro-overseas {
-          display: block;
-        }
-      `}</style>
-
       {/* Hidden radio inputs */}
       <input type="radio" name="student-tab" id="tab-undergraduate" className="tab-radio" defaultChecked />
       <input type="radio" name="student-tab" id="tab-graduate" className="tab-radio" />
