@@ -8,19 +8,7 @@ import GradeSelector, {
   graduateGrades,
   overseasGrades,
 } from "@/components/GradeSelector";
-
-const gradeLabels: Record<string, string> = {
-  freshman: "大一 · 探索期",
-  sophomore: "大二 · 定向期",
-  junior: "大三 · 积累期",
-  senior: "大四 · 冲刺期",
-  master1: "研一 · 适应期",
-  master2: "研二 · 积累期",
-  master3: "研三 · 冲刺期",
-  "overseas-early": "留学初期 · 探索期",
-  "overseas-mid": "留学中期 · 规划期",
-  "overseas-final": "留学末期 · 求职期",
-};
+import { getGradeLabel } from "@/data/grades";
 
 function ChatContent() {
   const searchParams = useSearchParams();
@@ -50,8 +38,8 @@ function ChatContent() {
   return (
     <ChatBox
       grade={grade}
-      gradeLabel={gradeLabels[grade] || ""}
-      placeholder={`作为${gradeLabels[grade] || "当前阶段"}的同学，你想聊些什么？`}
+      gradeLabel={getGradeLabel(grade)}
+      placeholder={`作为${getGradeLabel(grade) || "当前阶段"}的同学，你想聊些什么？`}
     />
   );
 }
