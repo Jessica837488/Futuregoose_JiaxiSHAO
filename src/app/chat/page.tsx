@@ -3,11 +3,8 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import ChatBox from "@/components/ChatBox";
-import GradeSelector, {
-  undergraduateGrades,
-  graduateGrades,
-  overseasGrades,
-} from "@/components/GradeSelector";
+import { undergraduateGrades, graduateGrades, overseasGrades } from "@/data/grades";
+import GradeSelector from "@/components/GradeSelector";
 import { getGradeLabel } from "@/data/grades";
 
 function ChatContent() {

@@ -33,7 +33,6 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     setChatContext,
     showPrompts,
     setShowPrompts,
-    loading: isLoading,
   } = useChatPersistence({ grade });
 
   const { containerRef, sentinelRef } = useAutoScroll({ dep: messages });
