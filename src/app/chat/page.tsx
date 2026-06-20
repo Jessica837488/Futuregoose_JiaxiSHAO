@@ -3,7 +3,11 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import ChatBox from "@/components/ChatBox";
-import GradeSelector from "@/components/GradeSelector";
+import GradeSelector, {
+  undergraduateGrades,
+  graduateGrades,
+  overseasGrades,
+} from "@/components/GradeSelector";
 
 const gradeLabels: Record<string, string> = {
   freshman: "大一 · 探索期",
@@ -34,7 +38,11 @@ function ChatContent() {
             这样我就能给你更贴切的建议啦～
           </p>
         </div>
-        <GradeSelector onSelect={setGrade} selectedGrade={grade} />
+        <GradeSelector
+          onSelect={setGrade}
+          selectedGrade={grade}
+          grades={[...undergraduateGrades, ...graduateGrades, ...overseasGrades]}
+        />
       </div>
     );
   }
