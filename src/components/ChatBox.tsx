@@ -129,6 +129,9 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
   const [hydrated, setHydrated] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // Track whether user is scrolled near bottom (for smart auto-scroll)
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const config = gradeConfig[grade] || gradeConfig.freshman;
   const prompts = quickPrompts[grade] || quickPrompts.freshman;
@@ -175,9 +178,32 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     }
   }, [messages, chatContext, loading, grade, hydrated]);
 
+  // ── Smart auto-scroll: only scroll to bottom if user was already near it ──
   useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Within 80px of bottom = "at bottom"
+      setIsAtBottom(scrollHeight - scrollTop - clientHeight < 80);
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    // Only auto-scroll when new messages arrive AND user is at bottom (or initial load)
+    if (!isAtBottom && messages.length > 0) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isAtBottom]);
+
+  // ── Auto-resize textarea based on content ──
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`; // max ~5 lines
+  }, [input]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading) return;
@@ -239,7 +265,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-20">
             <div className="text-5xl mb-4">🦢</div>
@@ -317,8 +343,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder || "输入你的问题，按 Enter 发送..."}
-            rows={1}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none resize-none text-sm bg-white transition-all"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none resize-none text-sm bg-white transition-all min-h-[40px] max-h-[120px]"
             disabled={loading}
           />
           <button
