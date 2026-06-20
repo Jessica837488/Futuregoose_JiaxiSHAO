@@ -67,7 +67,7 @@
 | [React](https://react.dev/) | 19.2 | 纯客户端组件（`"use client"`） |
 | [TypeScript](https://www.typescriptlang.org/) | 5 | 严格类型检查，`ChatContext` 接口保障对话状态可追溯 |
 | [Tailwind CSS](https://tailwindcss.com/) | 4 | CSS-first 主题配置 (`@theme inline`) |
-| [CloudStudio](https://www.codebuddy.ai/) | — | 免费静态托管，零配置部署 |
+| [Vercel](https://vercel.com/) | — | 生产部署，Hobby 计划永久免费，全球 CDN 加速 |
 
 ### 架构特点
 
@@ -172,9 +172,11 @@ npm run build   # 生成 out/ 目录（纯静态文件）
 
 ## 🌐 在线访问
 
-**🔗 [http://ff1fdcf7ccf34643bb1aea32616cfc3d.codebuddy.cloudstudio.run](http://ff1fdcf7ccf34643bb1aea32616cfc3d.codebuddy.cloudstudio.run)**
+**🔗 [https://futuregoose-jiaxi-shao.vercel.app/](https://futuregoose-jiaxi-shao.vercel.app/)**
 
-部署于 CloudStudio，全球可访问，零成本运行。
+部署于 [Vercel](https://vercel.com/)，Hobby 计划永久免费，全球边缘网络加速。每次 `git push` 到 `master` 分支自动触发部署。
+
+> 备用部署：CloudStudio（`codebuddy.cloudstudio.run`）也已下线，统一使用 Vercel 作为生产环境。
 
 ---
 
@@ -182,6 +184,8 @@ npm run build   # 生成 out/ 目录（纯静态文件）
 
 | 版本 | 日期 | 关键变更 |
 |:---|:---|:---|
+| v0.7 | 06/2026 | 部署迁移到 Vercel；feat/multi-turn-chat 合并到 master |
+| v0.6 | 06/2026 | ChatBox 拆分为自定义 hooks；输入框自动撑高 + 智能滚动 |
 | v0.5 | 06/2026 | 追问引导提示 + 话题耗尽快捷提问恢复 |
 | v0.4 | 06/2026 | 多轮对话增强：3 层递进回复 + 追问检测 + 上下文追踪 |
 | v0.3 | 06/2026 | 年级选择网格自适应 + CSS 纯 Radio Tab 切换 |
