@@ -66,24 +66,38 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     setLoading(true);
     setShowPrompts(false);
 
-    // Simulate API call delay (800-1400ms for realism)
-    await new Promise((r) => setTimeout(r, 800 + Math.random() * 600));
+    try {
+      // ── 调用 AI（真 API 调用，~1-3 秒） ──
+      const { response, context: newContext } = await getResponse(
+        grade,
+        text,
+        chatContext
+      );
+      const finalResponse = response;
 
-    const { response, context: newContext } = getResponse(grade, text, chatContext);
-    const topicExhausted = newContext.topicExhausted;
-    const finalResponse = topicExhausted
-      ? response
-      : response + "\n\n试试追问我「还有呢」";
-
-    // Batch 2: update assistant message, context, show prompts, stop loading
-    setMessages((prev) => {
-      const updated = [...prev];
-      updated[updated.length - 1] = { role: "assistant", content: finalResponse };
-      return updated;
-    });
-    setChatContext(newContext);
-    if (topicExhausted) setShowPrompts(true);
-    setLoading(false);
+      // Batch 2: update assistant message
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: finalResponse };
+        return updated;
+      });
+      setChatContext(newContext);
+      if (newContext.topicExhausted) setShowPrompts(true);
+    } catch (err) {
+      // ── 异常处理（理论上 fallback 已处理，这里是兜底） ──
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("[ChatBox] 异常:", errorMessage);
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: "抱歉，出了点小问题，请重试一下～ 🦢",
+        };
+        return updated;
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Event handlers ──
