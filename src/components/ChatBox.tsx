@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { getResponse, type ChatContext } from "@/lib/chatResponses";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { getResponse, type ChatContext, type HistoryMessage } from "@/lib/chatResponses";
 import { getGradeConfig, getQuickPrompts } from "@/data/grades";
 import { useChatPersistence, type Message } from "@/hooks/useChatPersistence";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
+import { useChatStream } from "@/hooks/useChatStream";
 
 // ============================================================
 // Constants
@@ -38,8 +39,11 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
   const { containerRef, sentinelRef } = useAutoScroll({ dep: messages });
 
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState(""); // 流式累积文本
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // 流式 hook
+  const { isStreaming, stream, abort } = useChatStream();
 
   // ── Derived data ──
   const config = getGradeConfig(grade);
@@ -53,64 +57,101 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
   }, [input]);
 
-  // ── Send message logic ──
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || loading) return;
+  // ── Send message logic (流式版本) ──
+  const sendMessage = useCallback(
+    async (text: string) => {
+      if (!text.trim() || isStreaming) return;
 
-    const userMsg: Message = { role: "user", content: text };
-    const placeholderMsg: Message = { role: "assistant", content: "" };
+      const userMsg: Message = { role: "user", content: text };
+      const placeholderMsg: Message = { role: "assistant", content: "" };
 
-    // Batch 1: add both messages, clear input, set loading, hide prompts
-    setMessages((prev) => [...prev, userMsg, placeholderMsg]);
-    setInput("");
-    setLoading(true);
-    setShowPrompts(false);
+      // Batch 1: add user msg + AI placeholder, clear input, hide prompts
+      setMessages((prev) => [...prev, userMsg, placeholderMsg]);
+      setInput("");
+      setStreamingText("");
+      setShowPrompts(false);
 
-    try {
-      // ── 构造历史消息（最近 10 条，避免 token 过多） ──
-      // 不包含当前 userMsg（已经作为最新 user input 传给 getResponse）
+      // 构造历史消息（最近 10 条 + 不含当前 userMsg）
       const recentMessages = messages.slice(-10);
-      const history = recentMessages.map((m) => ({
+      const history: HistoryMessage[] = recentMessages.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       }));
 
-      // ── 调用 AI（真 API 调用，~1-3 秒） ──
-      const { response, context: newContext, fromAI, error } = await getResponse(
-        grade,
-        text,
-        chatContext,
-        { history }
-      );
+      // ── 1️⃣ 优先尝试流式 AI ──
+      let usedStream = false;
+      try {
+        const result = await stream(grade, text, history, (delta) => {
+          // 逐 chunk 更新最后一条 AI 消息
+          setStreamingText((prev) => {
+            const next = prev + delta;
+            setMessages((msgs) => {
+              const updated = [...msgs];
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: next,
+              };
+              return updated;
+            });
+            return next;
+          });
+        });
 
-      // ⚠️ 不再追加"试试追问"提示
-      // AI 在 prompt 中已经被要求自己追加"试试追问"，这里追加会重复
-      const finalResponse = response;
+        usedStream = true;
 
-      // Batch 2: update assistant message
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: finalResponse };
-        return updated;
-      });
-      setChatContext(newContext);
-      if (newContext.topicExhausted) setShowPrompts(true);
-    } catch (err) {
-      // ── 异常处理（理论上 fallback 已处理，这里是兜底） ──
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("[ChatBox] 异常:", errorMessage);
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content: "抱歉，出了点小问题，请重试一下～ 🦢",
-        };
-        return updated;
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (result.error) {
+          // 流式出错 → fallback 到非流式
+          throw new Error(result.error);
+        }
+      } catch (err) {
+        // ── 2️⃣ Fallback 到非流式（关键词匹配 / 普通 API） ──
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.warn("[ChatBox] 流式失败, fallback:", errorMessage);
+
+        // 还原 AI 占位消息
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: "" };
+          return updated;
+        });
+        setStreamingText("");
+
+        const { response, context: newContext, fromAI } = await getResponse(
+          grade,
+          text,
+          chatContext,
+          { history }
+        );
+
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content: response,
+          };
+          return updated;
+        });
+        setChatContext(newContext);
+
+        if (!fromAI && newContext.topicExhausted) {
+          setShowPrompts(true);
+        }
+        return;
+      }
+
+      // ── 3️⃣ 流式成功，重置 streamingText ──
+      if (usedStream) {
+        setStreamingText("");
+        setChatContext((prev) => ({ ...prev, topicExhausted: false }));
+      }
+    },
+    [grade, messages, chatContext, isStreaming, stream, setMessages, setChatContext, setShowPrompts]
+  );
+
+  // ── Stop button handler ──
+  const handleStop = useCallback(() => {
+    abort();
+  }, [abort]);
 
   // ── Event handlers ──
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -134,6 +175,12 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         >
           {config.emoji} {config.label}
         </span>
+        {isStreaming && (
+          <span className="ml-3 text-xs text-gray-400 inline-flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            AI 正在输入
+          </span>
+        )}
       </div>
 
       {/* Messages area */}
@@ -153,9 +200,13 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
 
         {/* Message list */}
         {messages.map((msg, i) => {
-          // AI 占位消息（content 为空 + loading 中）→ 显示 3 行骨架气泡
           const isAssistantPlaceholder =
             msg.role === "assistant" && !msg.content;
+          // 最后一条 AI 消息 + 正在流式 → 渲染光标
+          const isLastAssistant =
+            msg.role === "assistant" && i === messages.length - 1;
+          const showCursor = isLastAssistant && isStreaming && msg.content;
+
           return (
             <div
               key={`${msg.role}-${i}`}
@@ -173,7 +224,12 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
                 {isAssistantPlaceholder ? (
                   <MessageBubbleSkeleton />
                 ) : msg.content ? (
-                  msg.content
+                  <>
+                    {msg.content}
+                    {showCursor && (
+                      <span className="inline-block w-1.5 h-4 bg-brand ml-0.5 align-middle animate-pulse" />
+                    )}
+                  </>
                 ) : (
                   <TypingIndicator />
                 )}
@@ -185,10 +241,12 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       </div>
 
       {/* Quick prompts */}
-      {showPrompts && (
+      {showPrompts && !isStreaming && (
         <div className="px-4 pb-3">
           <p className="text-xs text-gray-400 mb-2 text-center">
-            {messages.length === 0 ? "💡 试试问我这些：" : "💡 换个话题继续聊："}
+            {messages.length === 0 || messages.length === 2
+              ? "💡 试试问我这些："
+              : "💡 换个话题继续聊："}
           </p>
           <div className="flex flex-wrap gap-2 justify-center">
             {prompts.map((prompt, i) => (
@@ -214,15 +272,24 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
             onKeyDown={handleKeyDown}
             placeholder={placeholder || "输入你的问题，按 Enter 发送..."}
             className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none resize-none text-sm bg-white transition-all min-h-[40px] max-h-[120px]"
-            disabled={loading}
+            disabled={isStreaming}
           />
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={loading || !input.trim()}
-            className="px-5 py-2.5 rounded-xl bg-brand text-white font-medium text-sm hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-brand/20 active:scale-95"
-          >
-            {loading ? "思考中..." : "发送"}
-          </button>
+          {isStreaming ? (
+            <button
+              onClick={handleStop}
+              className="px-5 py-2.5 rounded-xl bg-gray-500 text-white font-medium text-sm hover:bg-gray-600 transition-all shadow-md active:scale-95"
+            >
+              停止
+            </button>
+          ) : (
+            <button
+              onClick={() => sendMessage(input)}
+              disabled={!input.trim()}
+              className="px-5 py-2.5 rounded-xl bg-brand text-white font-medium text-sm hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-brand/20 active:scale-95"
+            >
+              发送
+            </button>
+          )}
         </div>
         <p className="text-xs text-gray-400 mt-2 text-center">
           未来鹅 AI 陪伴体 · 你的职业成长伙伴 🦢
