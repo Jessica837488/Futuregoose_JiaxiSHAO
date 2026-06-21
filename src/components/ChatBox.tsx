@@ -152,24 +152,35 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         )}
 
         {/* Message list */}
-        {messages.map((msg, i) => (
-          <div
-            key={`${msg.role}-${i}`}
-            className={`flex animate-msg ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
+        {messages.map((msg, i) => {
+          // AI 占位消息（content 为空 + loading 中）→ 显示 3 行骨架气泡
+          const isAssistantPlaceholder =
+            msg.role === "assistant" && !msg.content;
+          return (
             <div
-              className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                msg.role === "user"
-                  ? "bg-brand text-white rounded-br-md"
-                  : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
+              key={`${msg.role}-${i}`}
+              className={`flex animate-msg ${
+                msg.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              {msg.content || <TypingIndicator />}
+              <div
+                className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                  msg.role === "user"
+                    ? "bg-brand text-white rounded-br-md"
+                    : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
+                }`}
+              >
+                {isAssistantPlaceholder ? (
+                  <MessageBubbleSkeleton />
+                ) : msg.content ? (
+                  msg.content
+                ) : (
+                  <TypingIndicator />
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={sentinelRef} />
       </div>
 
@@ -228,7 +239,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
 /** Animated typing dots shown while AI is "thinking" */
 function TypingIndicator() {
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-1.5 py-1">
       {[0, 200, 400].map((delay) => (
         <span
           key={delay}
@@ -237,5 +248,18 @@ function TypingIndicator() {
         />
       ))}
     </span>
+  );
+}
+
+/** AI 回复中的骨架占位 (3 行气泡) */
+function MessageBubbleSkeleton() {
+  return (
+    <div className="flex justify-start animate-msg">
+      <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-100 shadow-sm space-y-2">
+        <span className="block h-3 w-64 max-w-full rounded bg-gray-200/70 animate-shimmer" />
+        <span className="block h-3 w-56 max-w-full rounded bg-gray-200/70 animate-shimmer" />
+        <span className="block h-3 w-40 max-w-full rounded bg-gray-200/70 animate-shimmer" />
+      </div>
+    </div>
   );
 }
