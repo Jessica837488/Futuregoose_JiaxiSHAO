@@ -67,12 +67,24 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     setShowPrompts(false);
 
     try {
+      // ── 构造历史消息（最近 10 条，避免 token 过多） ──
+      // 不包含当前 userMsg（已经作为最新 user input 传给 getResponse）
+      const recentMessages = messages.slice(-10);
+      const history = recentMessages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+
       // ── 调用 AI（真 API 调用，~1-3 秒） ──
-      const { response, context: newContext } = await getResponse(
+      const { response, context: newContext, fromAI, error } = await getResponse(
         grade,
         text,
-        chatContext
+        chatContext,
+        { history }
       );
+
+      // ⚠️ 不再追加"试试追问"提示
+      // AI 在 prompt 中已经被要求自己追加"试试追问"，这里追加会重复
       const finalResponse = response;
 
       // Batch 2: update assistant message

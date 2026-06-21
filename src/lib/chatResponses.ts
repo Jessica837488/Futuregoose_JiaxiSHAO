@@ -54,6 +54,50 @@ const EMPTY_CONTEXT: ChatContext = {
 };
 
 // ============================================================
+// 工具：去重"试试追问"提示
+// ============================================================
+/**
+ * AI 偶尔会在一次回复里加 2-3 次"试试追问"提示
+ * 这个函数把重复的提示去重，只保留第一次出现的
+ */
+function dedupeFollowHints(text: string): string {
+  // 匹配常见的"试试追问"提示行
+  // 匹配以"试试追问"开头，到行尾（不含换行符）
+  const lines = text.split("\n");
+
+  // 找出所有"试试追问"行的索引
+  const hintIndices: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/试试追问/.test(lines[i])) {
+      hintIndices.push(i);
+    }
+  }
+
+  // 如果只有 0 或 1 个，无需去重
+  if (hintIndices.length <= 1) {
+    return text;
+  }
+
+  // 保留第一次出现的提示行
+  // 把它移到文末（在最后一个非空行之后）
+  const firstHintLine = lines[hintIndices[0]];
+
+  // 移除所有"试试追问"行
+  const filteredLines = lines.filter((_, idx) => !hintIndices.includes(idx));
+
+  // 找到最后一个非空行的位置
+  let lastNonEmptyIdx = filteredLines.length - 1;
+  while (lastNonEmptyIdx >= 0 && filteredLines[lastNonEmptyIdx].trim() === "") {
+    lastNonEmptyIdx--;
+  }
+
+  // 在最后一个非空行之后插入提示（保持前面有空行隔开）
+  filteredLines.splice(lastNonEmptyIdx + 1, 0, "", firstHintLine);
+
+  return filteredLines.join("\n");
+}
+
+// ============================================================
 // 导入数据模块
 // ============================================================
 import { defaultResponses } from "@/data/defaultResponses";
@@ -238,12 +282,10 @@ export async function getResponse(
   try {
     const aiResponse = await callChatAPI(grade, userInput, history);
 
-    // 追加"试试追问"提示（仅在非追问时）
-    const isFollowUpInput = isFollowUp(userInput);
-    const showFollowHint = !context.topicExhausted && !isFollowUpInput;
-    const finalResponse = showFollowHint
-      ? aiResponse + "\n\n试试追问我「还有呢」"
-      : aiResponse;
+    // ⚠️ 保险措施：去重"试试追问"提示
+    // 即使 prompt 说了只加 1 次，AI 偶尔还是会加 2-3 次
+    // 这里把"试试追问"相关的句子去重，只保留第一次出现的
+    const finalResponse = dedupeFollowHints(aiResponse);
 
     return {
       response: finalResponse,
