@@ -118,7 +118,10 @@ export async function POST(request: NextRequest) {
   if (!apiKey) {
     console.error("[api/chat] GLM_API_KEY 未配置");
     return new Response(
-      JSON.stringify({ error: "服务端未配置 API Key，请联系管理员" }),
+      JSON.stringify({
+        error: "服务端未配置 API Key，请联系管理员",
+        type: "UNAUTHORIZED",
+      }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -312,9 +315,17 @@ async function handleNonStream(
     if (!res.ok) {
       const errText = await res.text();
       console.error(`[api/chat] 智谱 API 错误 (${res.status}):`, errText);
+      // 智谱限流是 429，未授权 401/403，其他 5xx
+      const errType =
+        res.status === 429
+          ? "RATE_LIMIT"
+          : res.status === 401 || res.status === 403
+            ? "UNAUTHORIZED"
+            : "SERVER";
       return new Response(
         JSON.stringify({
           error: `智谱 API 调用失败 (${res.status})`,
+          type: errType,
           details: errText.slice(0, 500),
         }),
         { status: 502, headers: { "Content-Type": "application/json" } }
@@ -330,7 +341,7 @@ async function handleNonStream(
         JSON.stringify(data).slice(0, 200)
       );
       return new Response(
-        JSON.stringify({ error: "智谱 API 返回为空" }),
+        JSON.stringify({ error: "智谱 API 返回为空", type: "EMPTY" }),
         { status: 502, headers: { "Content-Type": "application/json" } }
       );
     }

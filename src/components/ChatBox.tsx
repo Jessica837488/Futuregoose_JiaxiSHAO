@@ -6,6 +6,8 @@ import { getGradeConfig, getQuickPrompts } from "@/data/grades";
 import { useChatPersistence, type Message } from "@/hooks/useChatPersistence";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useChatStream } from "@/hooks/useChatStream";
+import { type ChatError, classifyNetworkError, createChatError } from "@/lib/errors";
+import ErrorToast from "@/components/ErrorToast";
 
 // ============================================================
 // Constants
@@ -42,8 +44,11 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
   const [streamingText, setStreamingText] = useState(""); // 流式累积文本
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // 流式 hook
-  const { isStreaming, stream, abort } = useChatStream();
+  // 失败重试用：保留上一次失败的用户输入
+  const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
+
+  // 流式 hook (含 error state)
+  const { isStreaming, error, stream, abort, clearError } = useChatStream();
 
   // ── Derived data ──
   const config = getGradeConfig(grade);
@@ -57,7 +62,35 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
   }, [input]);
 
-  // ── Send message logic (流式版本) ──
+  // ── 把"流式/网络/智谱"失败的 AI 占位消息替换为错误提示卡 ──
+  const replaceLastAssistantWithError = useCallback(
+    (chatError: ChatError) => {
+      setMessages((prev) => {
+        const updated = [...prev];
+        // 占位消息格式: "[ERROR:type]用户友好提示"
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: chatError.userMessage,
+          isError: true,
+          errorType: chatError.type,
+        } as Message;
+        return updated;
+      });
+      setStreamingText("");
+    },
+    [setMessages]
+  );
+
+  // ── 清理占位（用户主动重试时先移除错误消息） ──
+  const removeLastAssistant = useCallback(() => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      updated.pop();
+      return updated;
+    });
+  }, [setMessages]);
+
+  // ── Send message logic (流式 + 错误处理 + fallback) ──
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim() || isStreaming) return;
@@ -65,11 +98,12 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       const userMsg: Message = { role: "user", content: text };
       const placeholderMsg: Message = { role: "assistant", content: "" };
 
-      // Batch 1: add user msg + AI placeholder, clear input, hide prompts
+      // Batch 1: add user msg + AI placeholder, clear input
       setMessages((prev) => [...prev, userMsg, placeholderMsg]);
       setInput("");
       setStreamingText("");
       setShowPrompts(false);
+      setLastFailedInput(null);
 
       // 构造历史消息（最近 10 条 + 不含当前 userMsg）
       const recentMessages = messages.slice(-10);
@@ -79,10 +113,8 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
       }));
 
       // ── 1️⃣ 优先尝试流式 AI ──
-      let usedStream = false;
       try {
         const result = await stream(grade, text, history, (delta) => {
-          // 逐 chunk 更新最后一条 AI 消息
           setStreamingText((prev) => {
             const next = prev + delta;
             setMessages((msgs) => {
@@ -97,61 +129,50 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
           });
         });
 
-        usedStream = true;
-
-        if (result.error) {
-          // 流式出错 → fallback 到非流式
-          throw new Error(result.error);
+        if (result.chatError) {
+          // 流式返回了错误（HTTP 错误 / SSE error 事件）
+          // 先记录失败输入供重试
+          setLastFailedInput(text);
+          // 替换占位为错误卡
+          replaceLastAssistantWithError(result.chatError);
+          return;
         }
-      } catch (err) {
-        // ── 2️⃣ Fallback 到非流式（关键词匹配 / 普通 API） ──
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.warn("[ChatBox] 流式失败, fallback:", errorMessage);
 
-        // 还原 AI 占位消息
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: "" };
-          return updated;
-        });
-        setStreamingText("");
-
-        const { response, context: newContext, fromAI } = await getResponse(
-          grade,
-          text,
-          chatContext,
-          { history }
-        );
-
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = {
-            role: "assistant",
-            content: response,
-          };
-          return updated;
-        });
-        setChatContext(newContext);
-
-        if (!fromAI && newContext.topicExhausted) {
-          setShowPrompts(true);
-        }
-        return;
-      }
-
-      // ── 3️⃣ 流式成功，重置 streamingText ──
-      if (usedStream) {
+        // ── 3️⃣ 流式成功 ──
         setStreamingText("");
         setChatContext((prev) => ({ ...prev, topicExhausted: false }));
+      } catch (err) {
+        // 防御性兜底：理论上 result.chatError 已经覆盖
+        const chatError = classifyNetworkError(err);
+        setLastFailedInput(text);
+        replaceLastAssistantWithError(chatError);
       }
     },
-    [grade, messages, chatContext, isStreaming, stream, setMessages, setChatContext, setShowPrompts]
+    [
+      grade,
+      messages,
+      isStreaming,
+      stream,
+      setMessages,
+      setChatContext,
+      setShowPrompts,
+      replaceLastAssistantWithError,
+    ]
   );
 
   // ── Stop button handler ──
   const handleStop = useCallback(() => {
     abort();
   }, [abort]);
+
+  // ── 重试：拿回上次失败输入，重新发 ──
+  const handleRetry = useCallback(() => {
+    if (!lastFailedInput) return;
+    // 移除错误卡，重新发送
+    removeLastAssistant();
+    clearError();
+    sendMessage(lastFailedInput);
+  }, [lastFailedInput, removeLastAssistant, clearError, sendMessage]);
 
   // ── Event handlers ──
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -183,6 +204,13 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         )}
       </div>
 
+      {/* 错误提示横幅（顶部） */}
+      <ErrorToast
+        error={error}
+        onDismiss={clearError}
+        onRetry={error?.retryable && lastFailedInput ? handleRetry : undefined}
+      />
+
       {/* Messages area */}
       <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
         {/* Empty state */}
@@ -193,7 +221,8 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
               你好！我是未来鹅 🦢
             </h2>
             <p className="text-gray-500 mb-8 max-w-md mx-auto leading-relaxed">
-              {gradeLabel || "我是一只会陪伴你成长的鹅，关于大学规划、职业方向、鹅厂的那些事儿，你都可以问问我～"}
+              {gradeLabel ||
+                "我是一只会陪伴你成长的鹅，关于大学规划、职业方向、鹅厂的那些事儿，你都可以问问我～"}
             </p>
           </div>
         )}
@@ -202,10 +231,10 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         {messages.map((msg, i) => {
           const isAssistantPlaceholder =
             msg.role === "assistant" && !msg.content;
-          // 最后一条 AI 消息 + 正在流式 → 渲染光标
           const isLastAssistant =
             msg.role === "assistant" && i === messages.length - 1;
           const showCursor = isLastAssistant && isStreaming && msg.content;
+          const isErrorMessage = (msg as Message & { isError?: boolean }).isError;
 
           return (
             <div
@@ -218,10 +247,24 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
                 className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                   msg.role === "user"
                     ? "bg-brand text-white rounded-br-md"
-                    : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
+                    : isErrorMessage
+                      ? "bg-red-50 border border-red-200 text-red-800 rounded-bl-md"
+                      : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
                 }`}
               >
-                {isAssistantPlaceholder ? (
+                {isErrorMessage ? (
+                  <ErrorMessageCard
+                    message={msg.content}
+                    onRetry={() => {
+                      // 找到上一条 user 消息（错误卡的前一条）
+                      const userMsg = messages[i - 1];
+                      if (userMsg && userMsg.role === "user") {
+                        removeLastAssistant();
+                        sendMessage(userMsg.content);
+                      }
+                    }}
+                  />
+                ) : isAssistantPlaceholder ? (
                   <MessageBubbleSkeleton />
                 ) : msg.content ? (
                   <>
@@ -302,6 +345,30 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
 // ============================================================
 // Sub-components
 // ============================================================
+
+/** 错误消息卡片 — 嵌入在对话流里（不是顶部 Toast） */
+function ErrorMessageCard({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="text-base flex-shrink-0" aria-hidden="true">⚠️</span>
+      <div className="flex-1">
+        <p>{message}</p>
+        <button
+          onClick={onRetry}
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 transition-colors"
+        >
+          ↻ 再试一次
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** Animated typing dots shown while AI is "thinking" */
 function TypingIndicator() {

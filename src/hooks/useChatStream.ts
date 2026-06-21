@@ -2,52 +2,60 @@
 
 import { useRef, useState, useCallback } from "react";
 import type { HistoryMessage } from "@/lib/chatResponses";
+import {
+  type ChatError,
+  type ChatErrorType,
+  classifyHttpError,
+  classifyNetworkError,
+  createChatError,
+} from "@/lib/errors";
 
 /**
  * useChatStream — 封装与 /api/chat 流式端点的交互
  *
  * 使用场景：
- *   组件挂载时调用 hook 拿到 { stream, isStreaming, error, abort }
- *   用户发消息时调用 stream(grade, userInput, history, onDelta)
+ *   const { isStreaming, error, stream, abort, clearError } = useChatStream();
+ *   await stream(grade, input, history, onDelta);
  *   onDelta(delta) 会在每个 SSE chunk 到达时被调用
- *   调用 abort() 可以中止当前请求
  *
  * SSE 数据格式（来自 /api/chat stream=true）：
  *   data: {"delta": "你", "done": false}\n\n
- *   data: {"delta": "好", "done": false}\n\n
  *   ...
  *   data: {"done": true}\n\n
- *   data: {"error": "...", "done": true}\n\n
+ *   data: {"error": "...", "type": "RATE_LIMIT", "done": true}\n\n
  */
 export interface UseChatStreamResult {
   /** 是否正在流式接收 */
   isStreaming: boolean;
-  /** 错误信息（流式过程中出错时） */
-  error: string | null;
+  /** 当前的错误状态（null = 无错误） */
+  error: ChatError | null;
   /**
    * 发起一次流式请求
    * @param grade 年级 ID
    * @param userInput 用户输入
    * @param history 历史消息
    * @param onDelta 每收到一段 delta 文本时回调
-   * @returns Promise<{ fullText: string, error?: string }> 完整文本
+   * @returns Promise<{ fullText, chatError? }> 完整文本 + 错误信息
    */
   stream: (
     grade: string,
     userInput: string,
     history: HistoryMessage[],
     onDelta: (delta: string) => void
-  ) => Promise<{ fullText: string; error?: string }>;
+  ) => Promise<{ fullText: string; chatError?: ChatError }>;
   /** 中止当前请求 */
   abort: () => void;
+  /** 清除错误状态（用于 Toast 关闭） */
+  clearError: () => void;
 }
 
 export function useChatStream(): UseChatStreamResult {
   const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatError | null>(null);
 
-  // 用 ref 持有 AbortController，让 abort 可以在闭包外访问
   const abortRef = useRef<AbortController | null>(null);
+
+  const clearError = useCallback(() => setError(null), []);
 
   const abort = useCallback(() => {
     abortRef.current?.abort();
@@ -61,11 +69,10 @@ export function useChatStream(): UseChatStreamResult {
       userInput: string,
       history: HistoryMessage[],
       onDelta: (delta: string) => void
-    ): Promise<{ fullText: string; error?: string }> => {
+    ): Promise<{ fullText: string; chatError?: ChatError }> => {
       setError(null);
       setIsStreaming(true);
 
-      // 创建新的 AbortController
       const controller = new AbortController();
       abortRef.current = controller;
 
@@ -80,38 +87,42 @@ export function useChatStream(): UseChatStreamResult {
         });
 
         if (!res.ok) {
-          // 尝试解析错误信息
+          // 尝试解析 { error, type, details }
           const errData = await res.json().catch(() => ({}));
-          const errMsg =
-            (errData as { error?: string }).error ||
+          const technicalDetail =
+            (errData as { error?: string; details?: string }).error ||
+            (errData as { details?: string }).details ||
             `HTTP ${res.status}`;
-          setError(errMsg);
-          return { fullText: "", error: errMsg };
+          const errType = (errData as { type?: ChatErrorType }).type;
+
+          const chatError = errType
+            ? createChatError(errType, technicalDetail)
+            : classifyHttpError(res.status, technicalDetail);
+
+          setError(chatError);
+          return { fullText: "", chatError };
         }
 
         if (!res.body) {
-          const errMsg = "响应为空";
-          setError(errMsg);
-          return { fullText: "", error: errMsg };
+          const chatError = createChatError("EMPTY", "响应为空");
+          setError(chatError);
+          return { fullText: "", chatError };
         }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
 
-        // 逐 chunk 读取
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
 
-          // 按 \n\n 分割 SSE 事件
           const events = buffer.split("\n\n");
-          buffer = events.pop() || ""; // 最后一段不完整，留到下次
+          buffer = events.pop() || "";
 
           for (const event of events) {
-            // 提取 data: 后面的内容
             const lines = event.split("\n");
             for (const line of lines) {
               const trimmed = line.trim();
@@ -124,14 +135,16 @@ export function useChatStream(): UseChatStreamResult {
                   delta?: string;
                   done?: boolean;
                   error?: string;
+                  type?: ChatErrorType;
                 };
 
                 if (data.error) {
-                  setError(data.error);
-                  return { fullText, error: data.error };
+                  const errType = data.type || "SERVER";
+                  const chatError = createChatError(errType, data.error);
+                  setError(chatError);
+                  return { fullText, chatError };
                 }
                 if (data.done) {
-                  // 正常结束
                   return { fullText };
                 }
                 if (data.delta) {
@@ -145,16 +158,14 @@ export function useChatStream(): UseChatStreamResult {
           }
         }
 
-        // 正常关闭
         return { fullText };
       } catch (err) {
         if ((err as Error).name === "AbortError") {
-          // 用户主动中止，不算错误
           return { fullText };
         }
-        const errMsg = err instanceof Error ? err.message : String(err);
-        setError(errMsg);
-        return { fullText, error: errMsg };
+        const chatError = classifyNetworkError(err);
+        setError(chatError);
+        return { fullText, chatError };
       } finally {
         setIsStreaming(false);
         abortRef.current = null;
@@ -163,5 +174,5 @@ export function useChatStream(): UseChatStreamResult {
     []
   );
 
-  return { isStreaming, error, stream, abort };
+  return { isStreaming, error, stream, abort, clearError };
 }
