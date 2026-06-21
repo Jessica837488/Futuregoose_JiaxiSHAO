@@ -37,6 +37,8 @@ interface ChatRequest {
   userInput: string;
   history?: HistoryMessage[];
   stream?: boolean;
+  /** RAG 检索结果（前端预处理） */
+  ragContext?: string;
 }
 
 interface ZhipuStreamChunk {
@@ -58,10 +60,11 @@ const ZHIPU_MODEL = "glm-4-flash";
 function buildMessages(
   grade: string,
   userInput: string,
-  history: HistoryMessage[]
+  history: HistoryMessage[],
+  ragContext?: string
 ): HistoryMessage[] {
   return [
-    { role: "user", content: getSystemPrompt(grade) },
+    { role: "user", content: getSystemPrompt(grade, ragContext) },
     ...history,
     { role: "user", content: userInput.trim() },
   ];
@@ -111,7 +114,7 @@ export async function POST(request: NextRequest) {
       { status: validation.status, headers: { "Content-Type": "application/json" } }
     );
   }
-  const { grade, userInput, history = [], stream = false } = validation.data;
+  const { grade, userInput, history = [], stream = false, ragContext = "" } = validation.data;
 
   // ── 3. 读取服务端 API Key ──
   const apiKey = process.env.GLM_API_KEY;
@@ -128,9 +131,9 @@ export async function POST(request: NextRequest) {
 
   // ── 4. 分支：流式 vs 非流式 ──
   if (stream) {
-    return handleStream(grade, userInput, history, apiKey);
+    return handleStream(grade, userInput, history, apiKey, ragContext);
   }
-  return handleNonStream(grade, userInput, history, apiKey);
+  return handleNonStream(grade, userInput, history, apiKey, ragContext);
 }
 
 // ============================================================
@@ -140,9 +143,10 @@ function handleStream(
   grade: string,
   userInput: string,
   history: HistoryMessage[],
-  apiKey: string
+  apiKey: string,
+  ragContext?: string
 ): Response {
-  const messages = buildMessages(grade, userInput, history);
+  const messages = buildMessages(grade, userInput, history, ragContext);
 
   // 创建 TransformStream 用于把智谱的 chunk 转成 SSE 格式
   const { readable, writable } = new TransformStream();
@@ -292,9 +296,10 @@ async function handleNonStream(
   grade: string,
   userInput: string,
   history: HistoryMessage[],
-  apiKey: string
+  apiKey: string,
+  ragContext?: string
 ): Promise<Response> {
-  const messages = buildMessages(grade, userInput, history);
+  const messages = buildMessages(grade, userInput, history, ragContext);
 
   try {
     const res = await fetch(ZHIPU_API_URL, {

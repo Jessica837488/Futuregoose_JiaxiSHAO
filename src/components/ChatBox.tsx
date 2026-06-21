@@ -7,6 +7,7 @@ import { useChatPersistence, type Message } from "@/hooks/useChatPersistence";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useChatStream } from "@/hooks/useChatStream";
 import { type ChatError, classifyNetworkError, createChatError } from "@/lib/errors";
+import { searchKnowledge, formatRAGContext, type RetrievedChunk } from "@/lib/ragSearch";
 import ErrorToast from "@/components/ErrorToast";
 
 // ============================================================
@@ -90,7 +91,7 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
     });
   }, [setMessages]);
 
-  // ── Send message logic (流式 + 错误处理 + fallback) ──
+  // ── Send message logic (流式 + 错误处理 + RAG) ──
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim() || isStreaming) return;
@@ -112,28 +113,41 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         content: m.content,
       }));
 
+      // ── 0️⃣ RAG 检索（如果有关键词命中）──
+      const ragResults = searchKnowledge(text, { topK: 3, minScore: 0.5 });
+      const ragContext = ragResults.length > 0 ? formatRAGContext(ragResults) : undefined;
+      const sourceList = ragResults.map((c) => ({
+        id: c.id,
+        title: c.title,
+        source: c.source,
+      }));
+
       // ── 1️⃣ 优先尝试流式 AI ──
       try {
-        const result = await stream(grade, text, history, (delta) => {
-          setStreamingText((prev) => {
-            const next = prev + delta;
-            setMessages((msgs) => {
-              const updated = [...msgs];
-              updated[updated.length - 1] = {
-                role: "assistant",
-                content: next,
-              };
-              return updated;
+        const result = await stream(
+          grade,
+          text,
+          history,
+          (delta) => {
+            setStreamingText((prev) => {
+              const next = prev + delta;
+              setMessages((msgs) => {
+                const updated = [...msgs];
+                updated[updated.length - 1] = {
+                  role: "assistant",
+                  content: next,
+                  sources: sourceList,
+                };
+                return updated;
+              });
+              return next;
             });
-            return next;
-          });
-        });
+          },
+          ragContext
+        );
 
         if (result.chatError) {
-          // 流式返回了错误（HTTP 错误 / SSE error 事件）
-          // 先记录失败输入供重试
           setLastFailedInput(text);
-          // 替换占位为错误卡
           replaceLastAssistantWithError(result.chatError);
           return;
         }
@@ -142,7 +156,6 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
         setStreamingText("");
         setChatContext((prev) => ({ ...prev, topicExhausted: false }));
       } catch (err) {
-        // 防御性兜底：理论上 result.chatError 已经覆盖
         const chatError = classifyNetworkError(err);
         setLastFailedInput(text);
         replaceLastAssistantWithError(chatError);
@@ -234,7 +247,8 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
           const isLastAssistant =
             msg.role === "assistant" && i === messages.length - 1;
           const showCursor = isLastAssistant && isStreaming && msg.content;
-          const isErrorMessage = (msg as Message & { isError?: boolean }).isError;
+          const isErrorMessage = msg.isError;
+          const sources = msg.sources;
 
           return (
             <div
@@ -243,38 +257,56 @@ export default function ChatBox({ grade, gradeLabel, placeholder }: ChatBoxProps
                 msg.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <div
-                className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                  msg.role === "user"
-                    ? "bg-brand text-white rounded-br-md"
-                    : isErrorMessage
-                      ? "bg-red-50 border border-red-200 text-red-800 rounded-bl-md"
-                      : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
-                }`}
-              >
-                {isErrorMessage ? (
-                  <ErrorMessageCard
-                    message={msg.content}
-                    onRetry={() => {
-                      // 找到上一条 user 消息（错误卡的前一条）
-                      const userMsg = messages[i - 1];
-                      if (userMsg && userMsg.role === "user") {
-                        removeLastAssistant();
-                        sendMessage(userMsg.content);
-                      }
-                    }}
-                  />
-                ) : isAssistantPlaceholder ? (
-                  <MessageBubbleSkeleton />
-                ) : msg.content ? (
-                  <>
-                    {msg.content}
-                    {showCursor && (
-                      <span className="inline-block w-1.5 h-4 bg-brand ml-0.5 align-middle animate-pulse" />
-                    )}
-                  </>
-                ) : (
-                  <TypingIndicator />
+              <div className="flex flex-col gap-1 max-w-[80%]">
+                <div
+                  className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === "user"
+                      ? "bg-brand text-white rounded-br-md"
+                      : isErrorMessage
+                        ? "bg-red-50 border border-red-200 text-red-800 rounded-bl-md"
+                        : "bg-white border border-gray-100 shadow-sm text-gray-700 rounded-bl-md"
+                  }`}
+                >
+                  {isErrorMessage ? (
+                    <ErrorMessageCard
+                      message={msg.content}
+                      onRetry={() => {
+                        const userMsg = messages[i - 1];
+                        if (userMsg && userMsg.role === "user") {
+                          removeLastAssistant();
+                          sendMessage(userMsg.content);
+                        }
+                      }}
+                    />
+                  ) : isAssistantPlaceholder ? (
+                    <MessageBubbleSkeleton />
+                  ) : msg.content ? (
+                    <>
+                      {msg.content}
+                      {showCursor && (
+                        <span className="inline-block w-1.5 h-4 bg-brand ml-0.5 align-middle animate-pulse" />
+                      )}
+                    </>
+                  ) : (
+                    <TypingIndicator />
+                  )}
+                </div>
+                {/* RAG 引用来源卡片 */}
+                {msg.role === "assistant" && sources && sources.length > 0 && !isErrorMessage && !isAssistantPlaceholder && (
+                  <div className="px-3 py-2 rounded-xl bg-blue-50/70 border border-blue-100 text-xs text-blue-700">
+                    <div className="flex items-center gap-1 mb-1 font-medium text-blue-800">
+                      <span>📚</span>
+                      <span>引用知识库（{sources.length}）</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {sources.map((s, idx) => (
+                        <div key={s.id} className="flex items-start gap-1.5">
+                          <span className="text-blue-400 flex-shrink-0">[{idx + 1}]</span>
+                          <span className="truncate">{s.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

@@ -35,13 +35,15 @@ export interface UseChatStreamResult {
    * @param userInput 用户输入
    * @param history 历史消息
    * @param onDelta 每收到一段 delta 文本时回调
+   * @param ragContext 可选，RAG 检索结果（拼进 system prompt）
    * @returns Promise<{ fullText, chatError? }> 完整文本 + 错误信息
    */
   stream: (
     grade: string,
     userInput: string,
     history: HistoryMessage[],
-    onDelta: (delta: string) => void
+    onDelta: (delta: string) => void,
+    ragContext?: string
   ) => Promise<{ fullText: string; chatError?: ChatError }>;
   /** 中止当前请求 */
   abort: () => void;
@@ -68,7 +70,8 @@ export function useChatStream(): UseChatStreamResult {
       grade: string,
       userInput: string,
       history: HistoryMessage[],
-      onDelta: (delta: string) => void
+      onDelta: (delta: string) => void,
+      ragContext?: string
     ): Promise<{ fullText: string; chatError?: ChatError }> => {
       setError(null);
       setIsStreaming(true);
@@ -82,7 +85,7 @@ export function useChatStream(): UseChatStreamResult {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ grade, userInput, history, stream: true }),
+          body: JSON.stringify({ grade, userInput, history, stream: true, ragContext }),
           signal: controller.signal,
         });
 

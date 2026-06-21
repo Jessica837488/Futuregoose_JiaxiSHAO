@@ -9,6 +9,12 @@ import type { ChatContext } from "@/lib/chatResponses";
 export interface Message {
   role: "user" | "assistant";
   content: string;
+  /** 是否错误消息（用于错误卡渲染） */
+  isError?: boolean;
+  /** 错误类型 */
+  errorType?: string;
+  /** 引用的知识库来源（RAG 检索结果） */
+  sources?: Array<{ id: string; title: string; source: string }>;
 }
 
 // ============================================================

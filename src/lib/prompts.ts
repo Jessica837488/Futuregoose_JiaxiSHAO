@@ -228,7 +228,16 @@ export const defaultPrompt: string = `${BASE_PERSONA}
 /**
  * 根据 grade ID 获取对应的 system prompt
  * 传入未知 key 时返回 defaultPrompt
+ *
+ * @param grade 年级 ID
+ * @param ragContext 可选，RAG 检索到的知识库片段
  */
-export function getSystemPrompt(grade: string): string {
-  return systemPrompts[grade] ?? defaultPrompt;
+export function getSystemPrompt(grade: string, ragContext?: string): string {
+  const basePrompt = systemPrompts[grade] ?? defaultPrompt;
+  if (ragContext && ragContext.trim()) {
+    // 把 RAG context 拼在 BASE_PERSONA 之后
+    // 在【⚠️ 追问提示规则】之前插入
+    return `${basePrompt}\n\n${ragContext}`;
+  }
+  return basePrompt;
 }
