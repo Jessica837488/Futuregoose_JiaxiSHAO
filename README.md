@@ -263,4 +263,10 @@ MIT License
 
 <div align="center">
   <sub>Made with 🦢 by FutureGoose Team</sub>
+## 作者
+邵家曦
+---
+
+<div align="center">
+  <sub>Made with 🦢 by Jiaxi SHAO</sub>
 </div>
